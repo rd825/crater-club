@@ -65,4 +65,4 @@ Set `CHROME` to a browser path to use an installed Chrome.
 
 ## License
 
-MIT. See `LICENSE`.
+Proprietary. Copyright (c) 2026 the Crater Club authors. All rights reserved. See `LICENSE`.

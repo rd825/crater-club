@@ -77,8 +77,8 @@ head = rep(head, '<div class="overlay" id="over">', '''<div class="overlay" id="
 </div>
 
 <div class="overlay" id="over">''')
-head = rep(head, '      <p>Free to copy and change under the MIT License.</p>',
-                 '      <p>The playground gives you every weapon with nothing running out, targets that never shoot back, and free digging and driving. <kbd>W</kbd> opens the full weapon list there.</p>\n      <p>Free to copy and change under the MIT License.</p>')
+head = rep(head, '      <p>&copy; 2026 the Crater Club authors. All rights reserved.</p>',
+                 '      <p>The playground gives you every weapon with nothing running out, targets that never shoot back, and free digging and driving. <kbd>W</kbd> opens the full weapon list there.</p>\n      <p>&copy; 2026 the Crater Club authors. All rights reserved.</p>')
 # ---------- script: reused pieces ----------
 draft = cut('/* ---------- draft ---------- */', '/* ---------- turn flow ---------- */')
 sprites = cut('/* ---------- drawing ---------- */', 'function rr(x, y, w, h, r)')
