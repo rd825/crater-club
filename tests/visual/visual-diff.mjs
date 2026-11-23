@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// Visual-diff harness: side-by-side screenshots of the ORIGINAL (root index.html,
-// loaded via file://) and the NEW React build (served by a throwaway Vite dev
-// server), across a small biome/time/weather matrix, plus a dependency-free
-// pixel-difference metric computed inside the browser.
+// Visual-diff harness: side-by-side screenshots of the ORIGINAL vanilla build
+// (legacy/index.html, loaded via file://) and the NEW React build (served by a
+// throwaway Vite dev server), across a small biome/time/weather matrix, plus a
+// dependency-free pixel-difference metric computed inside the browser.
 //
 // This is a BASELINE / REPORTING tool, not a pass/fail gate: the two builds use
 // independent RNG streams and timing, so exact pixel parity is impossible. The
 // metric is meant to catch GROSS regressions (sky gradient, terrain palette,
 // overall layout, tank sprites) — not to converge to zero. It always exits 0.
 //
-// Run from app/:   node tests/visual/visual-diff.mjs            (full matrix)
-//                  node tests/visual/visual-diff.mjs 1          (first combo only)
+// Run from the repo root:   node tests/visual/visual-diff.mjs        (full matrix)
+//                           node tests/visual/visual-diff.mjs 1      (first combo only)
 // Env:  CHROME=/path/to/chrome   use an installed browser instead of Playwright's
 //       VISUAL_PORT=5199         dev-server port (strict)
 //       VISUAL_LIMIT=1           limit number of combos (same as the positional arg)
@@ -22,9 +22,8 @@ import { dirname, resolve, join } from 'node:path';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(__dirname, '..', '..'); //  .../crater-club/app
-const repoRoot = resolve(appDir, '..'); //          .../crater-club
-const oldIndex = join(repoRoot, 'index.html'); //   committed original build artifact
+const projectRoot = resolve(__dirname, '..', '..'); //       .../crater-club (repo root = the app)
+const oldIndex = join(projectRoot, 'legacy', 'index.html'); // archived original vanilla build
 const outDir = join(__dirname, 'out');
 
 const PORT = Number(process.env.VISUAL_PORT || 5199);
@@ -50,7 +49,7 @@ const log = (...a) => console.log(...a);
 function startDevServer() {
   // Spawn the project's local Vite in dev mode (serves src/ directly, never touches dist/).
   const child = spawn('npx vite --port ' + PORT + ' --strictPort', {
-    cwd: appDir,
+    cwd: projectRoot,
     shell: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
@@ -189,7 +188,7 @@ async function diffMetric(page, oldPath, newPath) {
     catch { log('   [new] window.__crater never appeared; skipping new-build capture.'); newOk = false; }
   } else {
     log('Dev server did not come up. Falling back to OLD-build screenshots only.');
-    log('To capture the new build, start it yourself (cd app && npm run dev) and re-run.');
+    log('To capture the new build, start it yourself (npm run dev) and re-run.');
   }
 
   const diffPage = await browser.newPage(); // blank page used only for the diff math
