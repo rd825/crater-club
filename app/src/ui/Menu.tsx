@@ -28,7 +28,7 @@ export function Menu(): React.JSX.Element {
   const amountLabel = s.mode === 'health' ? 'Starting health' : 'Volleys each';
 
   return (
-    <div className="overlay open">
+    <div className="overlay open" role="dialog" aria-modal="true" aria-label="Game setup">
       <div className="sheet">
         <h1>Crater Club</h1>
         <p className="lede">Every turn you shape the ground, then fire across it. Dig tunnels, flood craters and bury your rivals.</p>
@@ -72,6 +72,12 @@ export function Menu(): React.JSX.Element {
           <Field label="Wind" k="wind" value={s.wind} onChange={(v) => set({ wind: v })} />
         </div>
 
+        {g.store.hasResume && (
+          <div className="go resume">
+            <button type="button" className="primary" onClick={() => g.resumeLast()}>Resume last match</button>
+            <button type="button" className="ghost" onClick={() => g.clearResume()} aria-label="Discard the saved match">Discard</button>
+          </div>
+        )}
         <div className="go">
           <button type="button" className="primary" onClick={() => g.startMatch()}>Start match</button>
           <button type="button" className="ghost" onClick={() => g.startPlayground()}>Playground</button>

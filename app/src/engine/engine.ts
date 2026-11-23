@@ -24,7 +24,7 @@ import { TIMES } from '../data/times.ts';
 import { WEATHER } from '../data/weather.ts';
 import { LEVELS, type Level } from '../data/levels.ts';
 import type {
-  Game, Grid, Tank, Projectile, MatchConfig, Env, DraftView, GameOverResult, Preview,
+  Game, Grid, Tank, Projectile, MatchConfig, Env, DraftView, GameOverResult, Preview, Part,
 } from './types.ts';
 
 type Fog = { x: number; y: number; w: number; h: number; v: number };
@@ -46,6 +46,18 @@ export class Engine {
   private acc = 0;
   readonly FOG: Fog[];
   readonly CLOUDS: Cloud[];
+
+  // Particle freelist: `parts` is the most numerous transient (capped at 480 live) and is
+  // allocated and culled every frame, so reused Part objects cut per-frame GC in heavy scenes
+  // (backlog: "object-pool particles / bits / booms"). `bits` already compacts in place
+  // (stepBits) and booms/puffs/bolts/floats are now compacted in place too (see update()).
+  private partPool: Part[] = [];
+  private allocPart(x: number, y: number, vx: number, vy: number, life: number, c: string, s: number, spark: boolean): Part {
+    const q = this.partPool.pop();
+    if (q) { q.x = x; q.y = y; q.vx = vx; q.vy = vy; q.t = 0; q.life = life; q.c = c; q.s = s; q.spark = spark; return q; }
+    return { x, y, vx, vy, t: 0, life, c, s, spark };
+  }
+  private freePart(q: Part): void { if (this.partPool.length < 600) this.partPool.push(q); }
 
   constructor(
     readonly ui: UIBridge,
@@ -794,7 +806,7 @@ export class Engine {
     for (let i = 0, n = clamp((r / 10) | 0, 2, 9); i < n; i++) this.smokePuff(x + this.rand(-r, r) * 0.5, y + this.rand(-r, r) * 0.3, this.rand(0.3, 0.6) * r + 6, !wet);
     if (!wet) for (let i = 0, n = Math.min(22, (r / 3) | 0); i < n && S.parts.length < 480; i++) {
       const a = this.rand(Math.PI, 2 * Math.PI), sp = this.rand(120, 200 + r * 4);
-      S.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: this.rand(0.25, 0.7), c: '#ffd98a', s: 1.6, spark: true });
+      S.parts.push(this.allocPart(x, y, Math.cos(a) * sp, Math.sin(a) * sp, this.rand(0.25, 0.7), '#ffd98a', 1.6, true));
     }
     if (r >= 40) S.flash = Math.max(S.flash, Math.min(0.7, r / 160));
     S.shake = Math.min(18, S.shake + r * 0.14);
@@ -809,7 +821,7 @@ export class Engine {
     const S = this.S, n = Math.min(18, 4 + ((r / 5) | 0));
     for (let i = 0; i < n && S.parts.length < 480; i++) {
       const a = this.rand(Math.PI, 2 * Math.PI), s = this.rand(40, 60 + r * 3);
-      S.parts.push({ x: x + this.rand(-r, r) * 0.4, y: y + this.rand(-r, r) * 0.3, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, life: this.rand(0.4, 1), c, s: this.rand(1.5, 3.5) });
+      S.parts.push(this.allocPart(x + this.rand(-r, r) * 0.4, y + this.rand(-r, r) * 0.3, Math.cos(a) * s, Math.sin(a) * s, this.rand(0.4, 1), c, this.rand(1.5, 3.5), false));
     }
   }
 
@@ -897,6 +909,11 @@ export class Engine {
       for (let o = -4; o <= 4; o += 0.5) consider(clamp(d + o, 0, 180), 100);
       return best;
     }
+    // NB (backlog "AI aiSolve speed"): coarsening this grid (3->4) and an early-out on the first
+    // hits were both tried and reverted — they perturb match outcomes (changing which exact-hit
+    // solution is picked) for negligible gain, since profiling (tests/e2e/perf.spec.ts) shows AI
+    // planning frames peak at ~6ms and are not the e2e bottleneck; match length is. If AI solve
+    // ever needs to come off the main thread, move it to a Web Worker (no outcome change).
     for (let a = 6; a <= 174; a += 3) for (let p = 16; p <= 100; p += 3) consider(a, p);
     if (hits.length) return this.pickOne(hits);
     const c = best;
@@ -1013,13 +1030,13 @@ export class Engine {
     S.time += DT; S.tickN++;
     for (let i = S.events.length - 1; i >= 0; i--) if (S.events[i].t <= S.time) S.events.splice(i, 1)[0].fn();
     for (let i = S.projs.length - 1; i >= 0; i--) { const p = S.projs[i]; if (p && !p.dead) this.stepProj(p); }
-    S.projs = S.projs.filter((p) => !p.dead);
+    { const a = S.projs; let w = 0; for (let i = 0; i < a.length; i++) { const p = a[i]; if (p && !p.dead) a[w++] = p; } a.length = w; }
     if (S.holes.length) {
       for (const hl of S.holes) {
         hl.t += DT;
         if (S.tickN % 6 === 0) this.carve(hl.x, hl.y, 14 + hl.t * 23, 0);
         for (const k of S.live) { const dx = hl.x - k.x; if (Math.abs(dx) < 240 && Math.abs(dx) > 14 && !this.isBuried(k)) { k.moveDir = Math.sign(dx); k.moveLeft = Math.max(k.moveLeft, 1.5); S.traces[k.id] = null; } }
-        if (S.tickN % 3 === 0 && S.parts.length < 480) { const a = this.rand(0, 6.28), d = this.rand(40, 130); S.parts.push({ x: hl.x + Math.cos(a) * d, y: hl.y + Math.sin(a) * d, vx: -Math.cos(a) * d * 2.2, vy: -Math.sin(a) * d * 2.2 - 120, t: 0, life: 0.42, c: '#c4a1ff', s: 2.5 }); }
+        if (S.tickN % 3 === 0 && S.parts.length < 480) { const a = this.rand(0, 6.28), d = this.rand(40, 130); S.parts.push(this.allocPart(hl.x + Math.cos(a) * d, hl.y + Math.sin(a) * d, -Math.cos(a) * d * 2.2, -Math.sin(a) * d * 2.2 - 120, 0.42, '#c4a1ff', 2.5, false)); }
       }
       const done = S.holes.filter((hl) => hl.t >= 2);
       if (done.length) {
@@ -1054,20 +1071,16 @@ export class Engine {
   update(dt: number): void {
     const S = this.S, W = this.W;
     for (const p of S.projs) { p.trail!.push(p.x, p.y); if (p.trail!.length > (p.seek ? 10 : 32)) p.trail!.splice(0, 2); }
-    for (const q of S.parts) { q.t += dt; q.vy += 520 * dt; q.x += q.vx * dt; q.y += q.vy * dt; }
-    S.parts = S.parts.filter((q) => q.t < q.life);
-    for (const q of S.puffs) { q.t += dt; q.x += (q.vx + S.wind * 0.3) * dt; q.y += q.vy * dt; q.r += 12 * dt; }
-    S.puffs = S.puffs.filter((q) => q.t < q.life);
+    // In-place compaction (no per-frame array allocation); culled parts return to the freelist.
+    { const a = S.parts; let w = 0; for (let i = 0; i < a.length; i++) { const q = a[i]; q.t += dt; q.vy += 520 * dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.t < q.life) a[w++] = q; else this.freePart(q); } a.length = w; }
+    { const a = S.puffs; let w = 0; for (let i = 0; i < a.length; i++) { const q = a[i]; q.t += dt; q.x += (q.vx + S.wind * 0.3) * dt; q.y += q.vy * dt; q.r += 12 * dt; if (q.t < q.life) a[w++] = q; } a.length = w; }
     for (const t of S.tanks) {
       t.recoil *= Math.pow(0.002, dt);
       if (t.dead ? this.rnd() < dt * 2.5 : S.health && t.hp < S.cfg.health * 0.35 && this.rnd() < dt * 5) this.smokePuff(t.x + this.rand(-4, 4), t.y - 14, this.rand(5, 9), true);
     }
-    for (const b of S.booms) b.t += dt * 2.3;
-    S.booms = S.booms.filter((b) => b.t < 1);
-    for (const b of S.bolts) b.t += dt * 3.2;
-    S.bolts = S.bolts.filter((b) => b.t < 1);
-    for (const f of S.floats) { f.t += dt; f.y -= 26 * dt; }
-    S.floats = S.floats.filter((f) => f.t < 1.5);
+    { const a = S.booms; let w = 0; for (let i = 0; i < a.length; i++) { const b = a[i]; b.t += dt * 2.3; if (b.t < 1) a[w++] = b; } a.length = w; }
+    { const a = S.bolts; let w = 0; for (let i = 0; i < a.length; i++) { const b = a[i]; b.t += dt * 3.2; if (b.t < 1) a[w++] = b; } a.length = w; }
+    { const a = S.floats; let w = 0; for (let i = 0; i < a.length; i++) { const f = a[i]; f.t += dt; f.y -= 26 * dt; if (f.t < 1.5) a[w++] = f; } a.length = w; }
     if (S.banner) { S.banner.t += dt; if (S.banner.t > 1.9) S.banner = null; }
     S.shake *= Math.pow(0.004, dt); S.flash *= Math.pow(0.004, dt);
     for (const d of S.drops) {
@@ -1078,7 +1091,7 @@ export class Engine {
     }
     if (this.rnd() < dt * 16 && S.parts.length < 480) {
       const x = this.rand(0, W - 1), y = this.surfaceY(x);
-      if (this.cellAt(x, y + 1) === LAVA) S.parts.push({ x, y, vx: this.rand(-14, 14), vy: -this.rand(50, 130), t: 0, life: this.rand(0.5, 1), c: '#ffb347', s: 1.6, spark: true });
+      if (this.cellAt(x, y + 1) === LAVA) S.parts.push(this.allocPart(x, y, this.rand(-14, 14), -this.rand(50, 130), this.rand(0.5, 1), '#ffb347', 1.6, true));
     }
     for (const f of this.FOG) { f.x += f.v * dt; if (f.x < -400) f.x = W + 400; else if (f.x > W + 400) f.x = -400; }
     for (const c of this.CLOUDS) { c.x += c.v * dt; if (c.x > W + 340) c.x = -340; }

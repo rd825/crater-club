@@ -8,7 +8,7 @@ export function Draft(): React.JSX.Element | null {
   const d = g.store.draftView;
   if (!d) return null;
   return (
-    <div className="overlay open">
+    <div className="overlay open" role="dialog" aria-modal="true" aria-label="Weapon draft">
       <div className="sheet wide">
         <h2 style={{ color: d.whoColor }}>{d.whoIsAI ? `${d.whoName} is choosing` : `${d.whoName}, pick a weapon`}</h2>
         <p className="lede">Take turns until everyone holds {d.per}. {d.whoName} has {d.whoCount} so far.</p>

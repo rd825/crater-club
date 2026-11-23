@@ -1,10 +1,15 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 import { fileURLToPath, URL } from 'node:url';
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  // `vite build --mode single` (npm run build:single) inlines all JS + CSS into one
+  // dist/index.html for a zero-dependency, server-less static deploy — the way the original
+  // vanilla game shipped. The two self-hosted woff2 fonts remain as sibling files under dist/.
+  // The normal `vite build` is unaffected.
+  plugins: [react(), ...(mode === 'single' ? [viteSingleFile()] : [])],
   resolve: {
     alias: {
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
@@ -22,4 +27,4 @@ export default defineConfig({
       include: ['src/engine/**', 'src/data/**'],
     },
   },
-});
+}));

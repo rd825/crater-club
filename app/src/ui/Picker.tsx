@@ -9,7 +9,7 @@ export function Picker(): React.JSX.Element | null {
   if (!S?.sandbox) return null;
   const t = g.engine.cur();
   return (
-    <div className="overlay open">
+    <div className="overlay open" role="dialog" aria-modal="true" aria-label="Weapon picker">
       <div className="sheet wide">
         <h2>All 50 weapons</h2>
         <p className="lede">Pick one to load it. Nothing runs out in the playground.</p>

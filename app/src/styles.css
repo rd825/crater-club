@@ -18,9 +18,22 @@ body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent; /* no grey flash on tap (touch) */
 }
 
-.app { display: flex; flex-direction: column; height: 100%; gap: 8px; padding: 8px; }
+/* honor the notch / rounded-corner safe areas (index.html sets viewport-fit=cover) */
+.app {
+  display: flex; flex-direction: column; height: 100%; gap: 8px;
+  padding:
+    max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+
+/* keyboard focus is always visible, even where the design relies on hover */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+button:focus-visible, .chip:focus-visible { outline-offset: 1px; }
 
 /* ---- score bar ---- */
 .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -46,7 +59,8 @@ body {
 
 /* ---- stage ---- */
 .stage { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
-#field { display: block; border-radius: 10px; background: #05030a; box-shadow: 0 8px 40px -12px #000; max-height: 100%; }
+/* touch-action:none so drag-to-aim on the canvas never scrolls/zooms the page on touch devices */
+#field { display: block; border-radius: 10px; background: #05030a; box-shadow: 0 8px 40px -12px #000; max-height: 100%; touch-action: none; }
 
 /* ---- dock ---- */
 .dock { display: flex; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
@@ -139,7 +153,17 @@ kbd { background: var(--panel2); border: 1px solid var(--line); border-radius: 4
 .final small { color: var(--muted); font-weight: 400; font-size: 11px; }
 .final span { font-weight: 800; color: var(--c); font-size: 18px; }
 
+.go.resume { margin-bottom: 4px; }
+
 @media (max-width: 560px) {
   .grid2, .playerRows { grid-template-columns: 1fr; }
   .meta { align-items: flex-start; }
+}
+
+/* Touch / stylus: give interactive controls a comfortable minimum hit target (~44px). */
+@media (pointer: coarse) {
+  .toolrow button, .driverow button, .slide button, .sandbar button, .barbtns button, .chip { min-height: 40px; }
+  .slide input[type='range'] { height: 28px; }
+  .fire { padding: 14px; }
+  .dock { gap: 12px; }
 }

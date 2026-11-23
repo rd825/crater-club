@@ -12,6 +12,8 @@ import { DEFAULT_SETTINGS, validateSettings, type Settings } from '../data/optio
 import { clamp } from '../engine/math.ts';
 
 const SETTINGS_KEY = 'craterclub.settings.v3';
+const SOUND_KEY = 'craterclub.sound';
+const RESUME_KEY = 'craterclub.resume.v5';
 
 export class GameController {
   readonly store = new Store();
@@ -27,9 +29,12 @@ export class GameController {
   private dragging = false;
   private attached = false;
   private booted = false;
+  private lastPersisted: unknown = null;
 
   constructor() {
     this.settings = this.loadSettings();
+    // Restore the saved sound on/off preference before any audio starts.
+    try { if (localStorage.getItem(SOUND_KEY) === 'off') this.audio.soundOn = false; } catch { /* ignore */ }
     const ui: UIBridge = {
       onSync: () => this.store.bump(),
       onAim: () => this.store.bump(),
@@ -37,7 +42,7 @@ export class GameController {
       onBanner: () => {},
       onBuildCards: () => this.store.bump(),
       onDraft: (v: DraftView | null) => { this.store.draftView = v; this.store.overlay = v ? 'draft' : this.store.overlay === 'draft' ? null : this.store.overlay; this.store.bump(); },
-      onGameOver: (r: GameOverResult) => { this.store.overResult = r; this.store.overlay = 'over'; this.store.bump(); },
+      onGameOver: (r: GameOverResult) => { this.clearResume(); this.store.overResult = r; this.store.overlay = 'over'; this.store.bump(); },
       closeOverlays: () => { this.store.overlay = null; this.store.bump(); },
     };
     this.engine = new Engine(ui, this.audio, realScheduler);
@@ -64,11 +69,56 @@ export class GameController {
   boot(): void {
     if (this.booted) return;
     this.booted = true;
+    this.store.hasResume = !!this.loadResume();
     const hot = (window as unknown as { claude?: { hot?: { snapshot?: (fn: () => unknown) => void; ready?: (cb: (d: unknown) => void) => void; data?: unknown } } }).claude?.hot;
     if (hot?.snapshot) hot.snapshot(() => this.engine.stable);
     const start = (data: unknown) => this.startFrom(data);
     if (hot?.ready) hot.ready(start);
     else start(hot?.data || {});
+  }
+
+  // ---- sound ----
+  /** Toggle sound and persist the choice (backlog: persist sound on/off). */
+  toggleSound(): void {
+    this.audio.toggle();
+    try { localStorage.setItem(SOUND_KEY, this.audio.soundOn ? 'on' : 'off'); } catch { /* ignore */ }
+  }
+
+  // ---- local resume (persist the last saveStable snapshot to localStorage) ----
+  private loadResume(): Record<string, unknown> | null {
+    try {
+      const d = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null');
+      if (d && d.v === 5 && d.grid && d.tanks && d.env) return d;
+    } catch { /* ignore */ }
+    return null;
+  }
+  /** Called each frame: mirror the engine's latest turn snapshot into localStorage. */
+  private persistResume(): void {
+    const st = this.engine.stable as { v?: number } | undefined;
+    const S = this.engine.S;
+    if (st && st.v === 5 && S && !S.demo && !S.sandbox && st !== this.lastPersisted) {
+      this.lastPersisted = st;
+      try { localStorage.setItem(RESUME_KEY, JSON.stringify(st)); } catch { /* ignore */ }
+      if (!this.store.hasResume) { this.store.hasResume = true; this.store.bump(); }
+    }
+  }
+  clearResume(): void {
+    this.lastPersisted = null;
+    try { localStorage.removeItem(RESUME_KEY); } catch { /* ignore */ }
+    if (this.store.hasResume) { this.store.hasResume = false; this.store.bump(); }
+  }
+  /** Resume the last persisted match from the menu. */
+  resumeLast(): void {
+    const d = this.loadResume();
+    if (!d) { this.clearResume(); return; }
+    this.audio.wake();
+    try {
+      this.engine.restore(d);
+      this.store.overResult = null;
+      this.store.overlay = null;
+      this.store.bump();
+      this.startLoop();
+    } catch { /* corrupt snapshot — drop it and stay on the menu */ this.clearResume(); }
   }
 
   private startFrom(data: unknown): void {
@@ -154,6 +204,7 @@ export class GameController {
       // keep canvas backing in sync with world width (it changes per match)
       if (this.cv && this.engine.W && Math.abs(this.cv.height / this.cv.width - H / this.engine.W) > 0.001) this.resize();
       this.engine.advance(real);
+      this.persistResume();
       if (this.renderer && this.engine.S) this.renderer.draw(this.engine);
       this.raf = requestAnimationFrame(frame);
     };

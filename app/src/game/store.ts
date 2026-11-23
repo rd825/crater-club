@@ -12,6 +12,8 @@ export class Store {
   draftView: DraftView | null = null;
   overResult: GameOverResult | null = null;
   soundState: 'off' | 'paused' | 'on' = 'on';
+  /** A resumable match snapshot is in localStorage (enables the menu's Resume button). */
+  hasResume = false;
 
   private listeners = new Set<() => void>();
 
