@@ -26,7 +26,7 @@ export type WeaponKind =
   | 'sticky'
   | 'saw';
 
-export type SelfKind = 'bags' | 'bubble' | 'lift';
+export type SelfKind = 'bags' | 'bubble';
 
 export interface WeaponSpec {
   r: number; // blast radius
@@ -93,7 +93,7 @@ export const WEAPONS: Record<string, Weapon> = {
   hop: { name: 'Hop Shell', desc: 'Moves your tank to where it lands. Hit a tank and you trade places.', rating: 1.5, spec: { r: 0, dmg: 0, kind: 'hop' } },
   thump: { name: 'Thumper', desc: 'A huge shockwave that leaves the ground alone and throws tanks sideways.', rating: 2.8, spec: { r: 150, dmg: 16, kind: 'thump' } },
   airburst: { name: 'Airburst', desc: 'Pops just above the ground and sprays nine pellets downward.', rating: 3.4, spec: { r: 22, dmg: 10, burst: true, danger: 120 } },
-  boomer: { name: 'Boomerang', desc: 'Turns around at the top of its arc and comes back.', rating: 2.8, spec: { r: 42, dmg: 26, boom: true } },
+  boomer: { name: 'Grenade', desc: 'Lobs over cover, bounces once a little bigger, and blasts where it settles.', rating: 2.8, spec: { r: 50, dmg: 27, bounce: 1, grow: 10, danger: 80 } },
   plumb: { name: 'Plumb Bob', desc: 'Stops dead at the top of its arc and drops straight down.', rating: 3, spec: { r: 44, dmg: 28, plumb: true } },
   buster: { name: 'Bunker Buster', desc: 'Drives deep into the ground before it goes off and hollows out a cave.', rating: 3.4, spec: { r: 64, dmg: 34, pierce: true } },
   leveler: { name: 'Leveler', desc: 'Flattens a wide stretch of ground. Shaves the hills and fills the pits.', rating: 2.4, spec: { r: 80, dmg: 14, kind: 'level', danger: 150 } },
@@ -106,7 +106,7 @@ export const WEAPONS: Record<string, Weapon> = {
   swarm: { name: 'Hornet Nest', desc: 'Cracks open and releases eight hornets that chase the nearest rival. Ground stops them.', rating: 3.2, spec: { r: 20, dmg: 6, kind: 'swarm', danger: 90 } },
   hiccup: { name: 'Hiccup Gas', desc: 'Any tank caught in the cloud hiccups on its next shot and fires off line.', rating: 2.6, spec: { r: 20, dmg: 6, kind: 'hiccup', danger: 90 } },
   bubble: { name: 'Soap Bubble', desc: 'Fires nothing. Wraps your tank in a bubble that soaks up the next 35 damage.', rating: 1.6, spec: { r: 0, dmg: 0, self: 'bubble' } },
-  lift: { name: 'High Ground', desc: 'Fires nothing. Raises a tall plateau under your tank.', rating: 1.3, spec: { r: 0, dmg: 0, self: 'lift' } },
+  lift: { name: 'Mortar', desc: 'A heavy shell on a steep, lazy arc. Wide, reliable blast where it drops.', rating: 3, spec: { r: 60, dmg: 32, danger: 70 } },
   geyser: { name: 'Geyser', desc: 'Erupts real water, floods the hole, and throws the tank it hits into the air.', rating: 2.8, spec: { r: 36, dmg: 14, kind: 'geyser' } },
   thunder: { name: 'Thunderhead', desc: 'Calls four lightning strikes somewhere around where it lands.', rating: 3.4, spec: { r: 14, dmg: 5, kind: 'thunder', danger: 170 } },
   smoke: { name: 'Smoke Screen', desc: 'Hides a wide patch of the map for two rounds. Computers aim worse into it.', rating: 1.4, spec: { r: 0, dmg: 0, kind: 'smoke' } },

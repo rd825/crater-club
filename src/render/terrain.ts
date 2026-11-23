@@ -85,7 +85,7 @@ export function shade(C: TerrainCache, G: Grid, c0: number, r0: number, c1: numb
         } else {
           R = dR[r]; Gc = dG[r]; B = dB[r];
           if (t === LOOSE) m = 1.16;
-          if ((((r * CELL + wav[c]) / 17) | 0) & 1) m *= 1.13;
+          if ((((r * CELL + wav[c]) / 17) | 0) & 1) m *= 1.13; // layered sediment banding
           m *= 1 + nz * 0.016;
         }
         if (lit) {

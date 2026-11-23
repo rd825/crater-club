@@ -218,6 +218,16 @@ export interface AimPlan {
   dur: number;
 }
 
+/** A spring / vent that keeps a biome's water or lava feature replenished turn to turn. */
+export interface LiquidSource {
+  x: number; // emit point, world px
+  y: number;
+  t: number; // WATER or LAVA
+  target: number; // liquid-cell count to maintain within `box`
+  box: [number, number, number, number]; // cell-space region measured + capped
+  vent?: boolean; // volcano vent: throws embers and erupts a touch harder
+}
+
 export type Phase = 'draft' | 'aim' | 'flight' | 'over';
 /** The shape tool currently hovered (ghost preview), or null. */
 export type Preview = string | null;
@@ -261,6 +271,7 @@ export interface Game {
   smokes: Smoke[];
   puffs: Puff[];
   bits: Bit[];
+  sources: LiquidSource[];
   // fx / camera scalars
   flash: number;
   shake: number;

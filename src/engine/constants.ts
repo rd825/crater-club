@@ -8,6 +8,12 @@ export const CELL = 2; // pixels per ground cell
 export const MAXP = 8; // maximum players
 export const ARSENAL = 10; // weapons per tank in health mode
 
+// Barrel angle range (degrees). 0 = horizontal-right, 90 = straight up, 180 = horizontal-left.
+// Extended below horizontal on each side so a tank on high ground can shoot downhill:
+// negative = down-right, >180 = down-left.
+export const AMIN = -72;
+export const AMAX = 252;
+
 export const SIZES = { small: 880, medium: 1200, large: 1600 } as const;
 export type SizeKey = keyof typeof SIZES;
 

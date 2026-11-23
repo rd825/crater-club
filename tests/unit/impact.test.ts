@@ -81,11 +81,10 @@ describe('signature effects (the parity heart)', () => {
     expect(countMat(eng, BUILT)).toBeGreaterThan(before);
   });
 
-  it('High Ground raises the firer (synchronous)', () => {
+  it('the Mound tool raises the firer onto high ground (synchronous)', () => {
     const { eng, me } = arena();
     const yBefore = me.y;
-    eng.loadAndAim('lift', null);
-    eng.fire();
+    eng.doShape(me, 'burrow');
     expect(me.y).toBeLessThan(yBefore); // y grows downward, so "up" is smaller
   });
 

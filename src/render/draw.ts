@@ -2,7 +2,7 @@
 // drawTank/drawProp/rr/tag/aimText/chipName. Imperative: no React in this path.
 
 import { CELL, WATER, INK, WATERC, LAVAC, REF, H } from '../engine/constants.ts';
-import { clamp } from '../engine/math.ts';
+import { clamp, aimText } from '../engine/math.ts';
 import { mix } from '../engine/color.ts';
 import { WEATHER } from '../data/weather.ts';
 import { WEAPONS } from '../data/weapons.ts';
@@ -41,7 +41,7 @@ export class Renderer {
     ctx.fillStyle = INK; ctx.globalAlpha = 0.66; this.rr(x - tw / 2, y - 13, tw, 18, 6); ctx.fill(); ctx.globalAlpha = 1;
     ctx.fillStyle = c; ctx.fillText(text, x, y);
   }
-  private aimText(a: number): string { a = Math.round(a); return a === 90 ? '90° ↑' : a < 90 ? a + '° →' : '← ' + (180 - a) + '°'; }
+  private aimText(a: number): string { return aimText(a); }
   private chipName(eng: Engine, id: string): string { return id === 'encore' ? 'Encore (' + WEAPONS[eng.S.lastId || 'shell'].name + ')' : WEAPONS[id].name; }
 
   private drawProp(type: string, s: number, f: number): void {
@@ -253,7 +253,7 @@ export class Renderer {
         ctx.strokeStyle = t.color; ctx.lineWidth = 22; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(t.x, t.y - 9); ctx.lineTo(t.x + Math.cos(a) * 104, t.y - 9 - Math.sin(a) * 104); ctx.stroke(); ctx.lineCap = 'butt';
       } else {
         const b = eng.shapeBox(t, preview);
-        ctx.fillStyle = preview === 'burrow' ? INK : t.color; ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
+        ctx.fillStyle = t.color; ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
         ctx.globalAlpha = 0.9; ctx.strokeStyle = t.color; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.setLineDash([]);
       }
       ctx.globalAlpha = 1;

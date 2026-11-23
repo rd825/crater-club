@@ -4,7 +4,7 @@
 import { AIR, DIRT, WATER, LAVA, ROCK, TURF, CELL, REF } from './constants.ts';
 import { clamp } from './math.ts';
 import { blob, onlyDirt } from './grid.ts';
-import type { Grid, Tank } from './types.ts';
+import type { Grid, Tank, LiquidSource } from './types.ts';
 import type { Rng } from './rng.ts';
 
 interface Sine {
@@ -34,16 +34,16 @@ export function genHeight(rng: Rng, biome: string, W: number): Height {
   let coneX = 0;
   switch (biome) {
     case 'hills': {
-      const b = rng.rand(365, 420),
-        cs = mkSines(rng, [70, 46, 28, 16, 9, 5]);
+      const b = rng.rand(268, 318),
+        cs = mkSines(rng, [104, 62, 36, 20, 11, 6]);
       for (let x = 0; x < W; x++) h[x] = b + sines(x, cs);
       break;
     }
     case 'mesa': {
-      const b = rng.rand(385, 420),
-        cs = mkSines(rng, [110, 60, 30]),
+      const b = rng.rand(278, 312),
+        cs = mkSines(rng, [124, 70, 36]),
         n = mkSines(rng, [0, 0, 0, 4, 3, 2]),
-        q = 52;
+        q = 58;
       for (let x = 0; x < W; x++) {
         const t = sines(x, cs) / q,
           f = Math.floor(t),
@@ -54,9 +54,9 @@ export function genHeight(rng: Rng, biome: string, W: number): Height {
     }
     case 'peaks': {
       const cs = mkSines(rng, [1, 1, 1], 1.6),
-        amps = [175, 80, 34];
+        amps = [205, 94, 40];
       for (let x = 0; x < W; x++) {
-        let y = 540;
+        let y = 500;
         cs.forEach((c, i) => {
           y -= amps[i] * c.a * (1 - Math.abs(Math.sin(x * c.f * 0.5 + c.p)));
         });
@@ -65,34 +65,34 @@ export function genHeight(rng: Rng, biome: string, W: number): Height {
       break;
     }
     case 'islands': {
-      const b = rng.rand(468, 488),
-        cs = mkSines(rng, [85, 55, 30, 14, 7]);
+      const b = rng.rand(452, 474),
+        cs = mkSines(rng, [102, 64, 34, 16, 8]);
       for (let x = 0; x < W; x++) h[x] = b + sines(x, cs);
       break;
     }
     case 'canyon': {
-      const cs = mkSines(rng, [0, 22, 14, 9, 5]),
+      const cs = mkSines(rng, [0, 28, 18, 11, 6]),
         c = W / 2 + rng.rand(-60, 60),
         half = W * rng.rand(0.125, 0.167);
       for (let x = 0; x < W; x++) {
         const s = clamp((Math.abs(x - c) - half) / 110, 0, 1);
-        h[x] = 520 - s * s * (3 - 2 * s) * 230 + sines(x, cs);
+        h[x] = 466 - s * s * (3 - 2 * s) * 258 + sines(x, cs);
       }
       break;
     }
     case 'caldera': {
-      const cs = mkSines(rng, [14, 12, 9, 6, 4]),
+      const cs = mkSines(rng, [18, 15, 11, 7, 5]),
         c = (coneX = W / 2 + rng.rand(-90, 90)),
         kk = (57800 * W * W) / (REF * REF);
       for (let x = 0; x < W; x++) {
         const d = x - c;
-        h[x] = 500 - 270 * Math.exp((-d * d) / kk) + 90 * Math.exp((-d * d) / 3200) + sines(x, cs);
+        h[x] = 446 - 300 * Math.exp((-d * d) / kk) + 96 * Math.exp((-d * d) / 3200) + sines(x, cs);
       }
       break;
     }
     case 'moon': {
-      const b = rng.rand(400, 440),
-        cs = mkSines(rng, [45, 30, 14, 6]);
+      const b = rng.rand(300, 344),
+        cs = mkSines(rng, [66, 44, 20, 9]);
       for (let x = 0; x < W; x++) h[x] = b + sines(x, cs);
       for (let i = 0; i < Math.round((9 * W) / REF); i++) {
         const c = rng.rand(40, W - 40),
@@ -107,8 +107,8 @@ export function genHeight(rng: Rng, biome: string, W: number): Height {
       break;
     }
     default: {
-      const b = rng.rand(365, 420),
-        cs = mkSines(rng, [70, 46, 28, 16, 9, 5]);
+      const b = rng.rand(268, 318),
+        cs = mkSines(rng, [104, 62, 36, 20, 11, 6]);
       for (let x = 0; x < W; x++) h[x] = b + sines(x, cs);
     }
   }
@@ -208,5 +208,44 @@ export function features(G: Grid, rng: Rng, biome: string, h: Float32Array, tank
   } else if (biome === 'moon') {
     pocket(AIR, 4, 50, 110, 10, 18, 44, 120);
   }
+}
+
+/**
+ * Living springs and vents: points that keep a biome's water/lava feature topped up turn to turn,
+ * so a pond blasted dry fills back in and a volcano re-wells its lava. Deterministic (no rng).
+ * Run after `features`, when the liquids are already in the grid, so `target` is their initial volume.
+ */
+export function makeSources(G: Grid, biome: string, h: Float32Array, tanks: Tank[], coneX: number): LiquidSource[] {
+  const W = G.W, H = G.H, cols = G.cols, rows = G.rows, g = G.g, out: LiquidSource[] = [];
+  const clear = (x: number, pad: number): boolean => tanks.every((t) => Math.abs(t.x - x) > pad);
+  const lowest = (): number => {
+    let bx = 100, by = 0;
+    for (let x = 80; x < W - 80; x += 4) if (h[x] > by && clear(x, 90)) { by = h[x]; bx = x; }
+    return bx;
+  };
+  const count = (t: number, b: [number, number, number, number]): number => {
+    let n = 0;
+    for (let r = Math.max(0, b[1]); r <= Math.min(rows - 1, b[3]); r++)
+      for (let c = Math.max(0, b[0]); c <= Math.min(cols - 1, b[2]); c++) if (g[r * cols + c] === t) n++;
+    return n;
+  };
+  // A spring that wells WATER out of the higher hillside so it runs down into the pool.
+  const spring = (px: number, half: number): void => {
+    const box: [number, number, number, number] = [((px - half) / CELL) | 0, ((h[px | 0] - 48) / CELL) | 0, ((px + half) / CELL) | 0, rows - 1];
+    const dir = h[clamp(px - half, 0, W - 1) | 0] < h[clamp(px + half, 0, W - 1) | 0] ? -1 : 1;
+    const ex = clamp(px + dir * Math.round(half * 0.72), 44, W - 44);
+    out.push({ x: ex, y: h[ex | 0] - 6, t: WATER, target: count(WATER, box), box });
+  };
+  if (biome === 'hills') spring(lowest(), 150);
+  else if (biome === 'peaks') spring(lowest(), 190);
+  else if (biome === 'canyon') spring(lowest(), W * 0.2);
+  else if (biome === 'caldera') {
+    const px = Math.round(coneX);
+    let rim = H;
+    for (let x = Math.max(0, px - 90) | 0; x < Math.min(W, px + 90); x++) if (h[x] < rim) rim = h[x];
+    const box: [number, number, number, number] = [((px - 80) / CELL) | 0, (rim / CELL) | 0, ((px + 80) / CELL) | 0, rows - 1];
+    out.push({ x: px, y: rim + 14, t: LAVA, target: count(LAVA, box), box, vent: true });
+  }
+  return out;
 }
 

@@ -7,7 +7,7 @@
 // No DOM, canvas, or WebAudio: side effects go through the injected UI/Audio/Scheduler bridges.
 
 import {
-  H, REF, CELL, SIZES, ARSENAL, SEATS, HAZ, WATERC,
+  H, REF, CELL, SIZES, ARSENAL, SEATS, HAZ, WATERC, LAVAC, AMIN, AMAX,
   AIR, DIRT, LOOSE, WATER, LAVA, TURF, BUILT, ROCK, SOLID,
   OOB, GROUND, LIQ, type PlayerType,
 } from './constants.ts';
@@ -17,7 +17,7 @@ import { createRng, timeSeed, type Rng } from './rng.ts';
 import type { UIBridge, AudioBridge, Scheduler } from './bridge.ts';
 import * as grid from './grid.ts';
 import { simStep } from './sim.ts';
-import { genHeight, flatten, raster, features } from './mapgen.ts';
+import { genHeight, flatten, raster, features, makeSources } from './mapgen.ts';
 import { WEAPONS, WEAPON_IDS, KINDS, MYSTERY_POOL, TRACER, type WeaponSpec } from '../data/weapons.ts';
 import { BIOMES } from '../data/biomes.ts';
 import { TIMES } from '../data/times.ts';
@@ -127,7 +127,7 @@ export class Engine {
       demo, sandbox, taken: [], shotDmg: 0, cfg, env, pal: b, sky: TIMES[env.time], g: b.space ? 150 : 300, vel: b.space ? 7 * Math.SQRT1_2 : 7,
       health, per: health ? ARSENAL : cfg.volleys, teams, teamOf: cfg.players.map((_p, i) => (teams ? (i < n / 2 ? 0 : 1) : i)),
       tanks: [], live: [], scores: [], shots: [], turn: 0, round: 1, phase: 'aim', wind: 0, lastId: null,
-      projs: [], events: [], parts: [], floats: [], booms: [], bolts: [], props: [], drops: [], holes: [], bombs: [], smokes: [], puffs: [], bits: [],
+      projs: [], events: [], parts: [], floats: [], booms: [], bolts: [], props: [], drops: [], holes: [], bombs: [], smokes: [], puffs: [], bits: [], sources: [],
       flash: 0, shake: 0, time: 0, tickN: 0, settleT: 0, flowT: 0, hazardDone: true, burnDone: true, slowT: 0, z: 1, zx: W / 2, zy: H / 2, dramaAt: 0,
       traces: [], marks: [], tracerRound: !demo && !sandbox, curTrace: [], pool: [], pickTurn: 0, aiPlan: null, banner: null,
       maxHold: 1, precip: null,
@@ -163,6 +163,7 @@ export class Engine {
     });
     S.live = S.tanks.slice();
     this.G = grid.makeGrid(W, H); raster(this.G, h); features(this.G, this.rng, biome, h, S.tanks, S.pal.sea || 0, coneX);
+    S.sources = makeSources(this.G, biome, h, S.tanks, coneX);
     this.G.act = [0, 0, this.G.cols - 1, this.G.rows - 1]; this.G.dirty = null;
     for (const t of S.tanks) t.y = Math.round(h[Math.round(t.x)] / CELL) * CELL;
     const np = Math.round((13 * W) / REF);
@@ -251,6 +252,7 @@ export class Engine {
 
   startAim(): void {
     const S = this.S;
+    this.regenSources();
     S.phase = 'aim'; S.settleT = 0; S.aiPlan = null; this.armed = false; this.preview = null;
     const t = this.cur(); t.shaped = false; t.fuel = 2;
     if (S.health && !t.weapons.length) { t.weapons = this.shuffle(WEAPON_IDS.slice()).slice(0, ARSENAL); t.sel = 0; this.floatText(t, 'resupplied', t.color); }
@@ -375,25 +377,67 @@ export class Engine {
   // ---- shaping (src/c_play.js:110-132) ----
   shapeBox(t: Tank, tool: string): [number, number, number, number] {
     const d = this.facing(t);
-    if (tool === 'wall') { const x0 = t.x + d * 26, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 6, t.y - 30)); return [Math.min(x0, x0 + d * 12), f - 46, Math.max(x0, x0 + d * 12), f + 1]; }
-    if (tool === 'bridge') return [Math.min(t.x + d * 14, t.x + d * 132), t.y, Math.max(t.x + d * 14, t.x + d * 132), t.y + 5];
+    // Wall: set well forward of the barrel so it shields without blocking your own shot.
+    if (tool === 'wall') { const x0 = t.x + d * 46, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 7, t.y - 30)); return [Math.min(x0, x0 + d * 14), f - 54, Math.max(x0, x0 + d * 14), f + 1]; }
+    if (tool === 'bridge') return [Math.min(t.x + d * 14, t.x + d * 176), t.y, Math.max(t.x + d * 14, t.x + d * 176), t.y + 5];
+    // Burrow: the mound it raises (used for the preview); the dig/doShape build it directly.
+    if (tool === 'burrow') return [t.x - 26, t.y - 64, t.x + 26, t.y + 2];
     return [t.x - 17, t.y, t.x + 17, t.y + 46];
   }
   doShape(t: Tank, tool: string): boolean {
     const S = this.S;
     if ((t.shaped && !S.sandbox) || S.phase !== 'aim' || S.tracerRound || t.moveLeft > 0) return false;
     if (tool === 'dig') {
+      // A longer, conically-widening tunnel along the barrel line.
       const a = (t.angle * Math.PI) / 180;
-      for (let s = 0; s <= 104; s += 6) this.carve(t.x + Math.cos(a) * s, t.y - 9 - Math.sin(a) * s, 11, 0.1);
+      for (let s = 0; s <= 150; s += 5) this.carve(t.x + Math.cos(a) * s, t.y - 9 - Math.sin(a) * s, 11 + s * 0.12, 0.1);
+    } else if (tool === 'burrow') {
+      // Raise a pillar of earth under the tank: take the high ground.
+      const ny = Math.max(70, t.y - 64), g = this.G.g, cols = this.G.cols, rows = this.G.rows, r0 = Math.round(ny / CELL);
+      for (let c = Math.max(0, ((t.x - 26) / CELL) | 0); c <= Math.min(cols - 1, ((t.x + 26) / CELL) | 0); c++)
+        for (let r = r0; r < rows - 5 && !SOLID[g[r * cols + c]]; r++) g[r * cols + c] = r < r0 + 3 ? TURF : DIRT;
+      grid.touch(this.G, ((t.x - 28) / CELL) | 0, r0 - 1, ((t.x + 28) / CELL) | 0, rows - 1);
+      t.y = r0 * CELL; this.debris(t.x, t.y + 28, 40, S.pal.dust);
     } else {
       const b = this.shapeBox(t, tool);
-      if (tool === 'burrow') this.fillCells(b[0], b[1], b[2], b[3], AIR, () => true);
-      else this.fillCells(b[0], b[1], b[2], b[3], BUILT, grid.notSolid);
+      this.fillCells(b[0], b[1], b[2], b[3], BUILT, grid.notSolid);
     }
     t.shaped = !S.sandbox; this.preview = null;
     for (const k of S.tanks) k.rangeN = 0;
     if (S.puffs.length < 60) this.smokePuff(t.x, t.y - 8, 12, false);
     this.audio.thud(); this.ui.onSync(); return true;
+  }
+
+  /** Springs and vents well their liquid back up each turn so blasted-out ponds and lava lakes refill. */
+  private regenSources(): void {
+    const S = this.S;
+    if (!S.sources.length) return;
+    const g = this.G.g, cols = this.G.cols, rows = this.G.rows;
+    for (const s of S.sources) {
+      let n = 0;
+      for (let r = Math.max(0, s.box[1]); r <= Math.min(rows - 1, s.box[3]); r++)
+        for (let c = Math.max(0, s.box[0]); c <= Math.min(cols - 1, s.box[2]); c++) if (g[r * cols + c] === s.t) n++;
+      if (n >= s.target) continue; // feature already full — rest quietly
+      const pulse = Math.min(s.vent ? 24 : 42, (s.target - n)); // cells welled up this turn; the solver carries them down
+      for (let k = 0; k < pulse; k++) this.deposit(s.x + ((k % 7) - 3) * CELL, s.y, s.t);
+      if (s.vent) { this.smokePuff(s.x, s.y - 10, 14, true); if (S.puffs.length < 60) this.debris(s.x, s.y, 10, LAVAC); }
+    }
+  }
+
+  /** Loose sediment sliding onto a tank slumps over it and buries it until it digs out. */
+  private burySlides(): void {
+    const S = this.S;
+    for (const t of S.live) {
+      if (t.dead || t.falling || t.afloat || this.isBuried(t)) continue;
+      // fresh loose dirt only appears from blasts/carving, so finding it on the deck means a slide landed
+      const onDeck = this.cellAt(t.x, t.y - 7) === LOOSE || this.cellAt(t.x, t.y - 11) === LOOSE;
+      const shoulders = this.cellAt(t.x - 12, t.y - 6) === LOOSE && this.cellAt(t.x + 12, t.y - 6) === LOOSE;
+      if (!onDeck && !shoulders) continue;
+      this.fillCells(t.x - 10, t.y - 15, t.x + 10, t.y - 1, DIRT, (c) => c === AIR || c === LOOSE);
+      grid.touch(this.G, ((t.x - 12) / CELL) | 0, ((t.y - 17) / CELL) | 0, ((t.x + 12) / CELL) | 0, (t.y / CELL) | 0);
+      this.smokePuff(t.x, t.y - 8, 12, false); this.floatText(t, 'buried!', '#d8c08a'); this.audio.thud();
+      t.moveLeft = 0; t.moveDir = 0;
+    }
   }
 
   // ---- firing & projectiles (src/c_play.js:134-202) ----
@@ -414,7 +458,7 @@ export class Engine {
       S.phase = 'flight'; S.settleT = 0; S.curTrace = []; S.aiPlan = null; S.hazardDone = true; S.burnDone = true;
       S.marks[t.id] = []; t.recoil = 1;
       const up = this.facing(t);
-      for (const d of TRACER.fan!) this.spawn(this.launch(t, clamp(t.angle + d * up, 0, 180), t.power, Object.assign({ lab: d }, TRACER.spec)), d === 0);
+      for (const d of TRACER.fan!) this.spawn(this.launch(t, clamp(t.angle + d * up, AMIN, AMAX), t.power, Object.assign({ lab: d }, TRACER.spec)), d === 0);
       this.audio.pop(); S.banner = { text: 'Tracer', t: 0.5, c: t.color }; this.ui.onSync(); return;
     }
     S.marks[t.id] = null;
@@ -435,13 +479,6 @@ export class Engine {
       this.audio.thud();
     } else if (sp.self === 'bubble') {
       t.shield = 35; S.booms.push({ x: t.x, y: t.y - 8, r: 26, t: 0, c: '#bfe8ff', soft: true }); this.audio.pop();
-    } else if (sp.self === 'lift') {
-      const ny = Math.max(80, t.y - 70), g = this.G.g, cols = this.G.cols, rows = this.G.rows, r0 = Math.round(ny / CELL);
-      for (let c = Math.max(0, ((t.x - 32) / CELL) | 0); c <= Math.min(cols - 1, ((t.x + 32) / CELL) | 0); c++)
-        for (let r = r0; r < rows - 5 && !SOLID[g[r * cols + c]]; r++) g[r * cols + c] = r < r0 + 3 ? TURF : DIRT;
-      grid.touch(this.G, ((t.x - 34) / CELL) | 0, r0 - 1, ((t.x + 34) / CELL) | 0, rows - 1);
-      t.y = r0 * CELL; this.debris(t.x, t.y + 30, 44, S.pal.dust); this.audio.thud();
-      for (const k of S.tanks) k.rangeN = 0;
     } else {
       const shoot = (first: boolean) => {
         if (t.dead) return;
@@ -1049,6 +1086,7 @@ export class Engine {
     if (S.bits.length) this.stepBits();
     simStep(this.G, (sx, sy) => { if (S.puffs.length < 70) S.puffs.push({ x: sx, y: sy, vx: this.rand(-10, 10), vy: -this.rand(20, 44), t: 0, life: this.rand(0.6, 1.1), r: this.rand(6, 11), dark: false }); });
     for (const t of S.tanks) this.stepTank(t);
+    if (this.G.act && S.tickN % 3 === 0) this.burySlides();
     if (S.tickN % 30 === 0) S.props = S.props.filter((p) => this.solidAt(p.x, p.y0 + 2));
     if (S.precip === 'rain' && S.tickN % (S.env.weather === 'storm' ? 10 : 20) === 0 && S.bits.length < 1400) S.bits.push({ x: this.rand(4, W - 4), y: 1, vx: S.wind * 1.5, vy: 430, t: WATER, rain: true });
     if (S.phase === 'flight') {

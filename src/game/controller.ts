@@ -3,7 +3,8 @@
 
 import { Engine } from '../engine/engine.ts';
 import { realScheduler, type UIBridge } from '../engine/bridge.ts';
-import { H } from '../engine/constants.ts';
+import { H, AMIN, AMAX } from '../engine/constants.ts';
+import { SHAPES, type ShapeTool } from '../data/shapes.ts';
 import type { MatchConfig, DraftView, GameOverResult, Tank } from '../engine/types.ts';
 import { WebAudio } from '../audio/sound.ts';
 import { Renderer } from '../render/draw.ts';
@@ -28,6 +29,8 @@ export class GameController {
   private last = 0;
   private dragging = false;
   private attached = false;
+  /** Keyboard-highlighted shaping tool (Q/E cycle it, Enter applies it). */
+  selTool: ShapeTool = 'dig';
   private booted = false;
   private lastPersisted: unknown = null;
 
@@ -218,7 +221,7 @@ export class GameController {
     if (!this.canHuman()) return;
     this.unarm();
     const t = this.engine.cur();
-    t.angle = clamp(Math.round(t.angle) + dA, 0, 180);
+    t.angle = clamp(Math.round(t.angle) + dA, AMIN, AMAX);
     t.power = clamp(Math.round(t.power) + dP, 5, 100);
     this.store.bump();
   }
@@ -231,7 +234,22 @@ export class GameController {
   }
   selectWeapon(i: number): void { if (!this.canHuman()) return; this.engine.unarm(); this.engine.cur().sel = i; this.store.bump(); }
   drive(d: number): void { if (!this.canHuman()) return; this.unarm(); if (this.engine.startMove(this.engine.cur(), d)) this.store.bump(); }
-  shapeNow(tool: string): void { if (!this.canHuman()) return; this.unarm(); this.engine.doShape(this.engine.cur(), tool); }
+  shapeNow(tool: string): void {
+    if (!this.canHuman()) return;
+    this.selTool = tool as ShapeTool;
+    this.unarm(); this.engine.doShape(this.engine.cur(), tool);
+  }
+  /** Q/E: move the highlight across the shaping tools (does not apply). */
+  cycleTool(d: number): void {
+    if (!this.canHuman()) return;
+    const keys = Object.keys(SHAPES) as ShapeTool[];
+    const i = (keys.indexOf(this.selTool) + d + keys.length) % keys.length;
+    this.selTool = keys[i];
+    this.engine.setPreview(this.engine.cur().shaped ? null : this.selTool);
+    this.store.bump();
+  }
+  /** Enter: apply the highlighted shaping tool. */
+  applyTool(): void { this.shapeNow(this.selTool); }
   hoverTool(tool: string | null): void {
     if (tool && this.canHuman() && !this.engine.cur().shaped) this.engine.setPreview(tool);
     else if (!tool) this.engine.setPreview(null);
@@ -261,22 +279,26 @@ export class GameController {
     if (!this.canHuman() || e.metaKey || e.ctrlKey || e.altKey) return;
     const target = e.target as HTMLElement | null;
     if (target?.closest?.('input, select, button, .overlay')) return;
-    const big = e.shiftKey ? 5 : 1, k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    // Lowercase the whole key name: multi-char keys arrive capitalised ('Enter', 'ArrowUp'),
+    // so comparing against lowercase names only works if we fold the case here.
+    const big = e.shiftKey ? 5 : 1, k = e.key.toLowerCase();
     let used = true;
+    // Arrows: left/right aim the barrel, up/down set power.
     if (k === 'arrowleft') this.nudge(big, 0);
     else if (k === 'arrowright') this.nudge(-big, 0);
     else if (k === 'arrowup') this.nudge(0, big);
     else if (k === 'arrowdown') this.nudge(0, -big);
+    // Q/E swap weapon, A/D swap shaping tool, Enter shapes, Space fires.
     else if (k === 'q' || k === '[') this.cycle(-1);
     else if (k === 'e' || k === ']') this.cycle(1);
-    else if (k === 'a') this.drive(-1);
-    else if (k === 'd') this.drive(1);
-    else if (k === 'w') this.openPicker();
-    else if (k === 'z') this.shapeNow('dig');
-    else if (k === 'x') this.shapeNow('burrow');
-    else if (k === 'c') this.shapeNow('wall');
-    else if (k === 'v') this.shapeNow('bridge');
-    else if (k === ' ' || k === 'enter') { if (!e.repeat) this.pressFire(); }
+    else if (k === 'a') this.cycleTool(-1);
+    else if (k === 'd') this.cycleTool(1);
+    else if (k === 'enter') { if (!e.repeat) this.applyTool(); }
+    else if (k === ' ') { if (!e.repeat) this.pressFire(); }
+    // Drive the tank with Z / X.
+    else if (k === 'z') this.drive(-1);
+    else if (k === 'x') this.drive(1);
+    else if (k === 'b') this.openPicker();
     else if (k === 'escape') this.unarm();
     else used = false;
     if (used) e.preventDefault();
@@ -293,9 +315,11 @@ export class GameController {
   private aimAt(e: PointerEvent): void {
     const q = this.worldPt(e), t: Tank = this.engine.cur(), dx = q.x - t.x, dy = t.y - 12 - q.y;
     let a = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (a < 0) a = dx < 0 ? 180 : 0;
+    // atan2 gives (-180,180]; fold the down-left quadrant into our >180 convention so you
+    // can drag the barrel below horizontal on either side.
+    if (a < -90) a += 360;
     this.unarm();
-    t.angle = Math.round(clamp(a, 0, 180));
+    t.angle = Math.round(clamp(a, AMIN, AMAX));
     t.power = Math.round(clamp(Math.hypot(dx, dy) / 3.2, 5, 100));
     this.store.bump();
   }
