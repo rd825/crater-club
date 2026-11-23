@@ -6,7 +6,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  timeout: 240_000, // AI aiSolve is real CPU work the FAST shim can't compress
+  timeout: 300_000, // long multi-tank health matches run a while in-browser (match length, not AI CPU)
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:4173',
@@ -14,7 +14,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    // build in "e2e" mode so main.tsx exposes the window.__crater hook the specs drive
+    command: 'npm run build:e2e && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

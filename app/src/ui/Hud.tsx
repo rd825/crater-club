@@ -70,7 +70,7 @@ export function Hud(): React.JSX.Element | null {
           {S.teams && !S.health && <span className="teamline">Left <b>{teamTotal(g, 0)}</b> · Right <b>{teamTotal(g, 1)}</b></span>}
         </div>
         <div className="barbtns">
-          <button type="button" className="ghost" onClick={() => g.audio.toggle()}>Sound {g.store.soundState}</button>
+          <button type="button" className="ghost" aria-pressed={g.store.soundState !== 'off'} onClick={() => g.toggleSound()}>Sound {g.store.soundState}</button>
           <button type="button" className="ghost" onClick={() => g.showMenu()}>Menu</button>
         </div>
       </header>
@@ -106,7 +106,7 @@ export function Hud(): React.JSX.Element | null {
             ) : (
               t.weapons.map((id, i) => (
                 <button key={i} type="button" className={'chip' + (i === t.sel ? ' on' : '')} disabled={!mine}
-                  title={WEAPONS[id].desc} onClick={() => g.selectWeapon(i)}>
+                  aria-pressed={i === t.sel} title={WEAPONS[id].desc} onClick={() => g.selectWeapon(i)}>
                   <img src={iconSrc(id)} alt="" width={16} height={16} />{chipName(S.lastId, id)}
                 </button>
               ))
@@ -125,14 +125,14 @@ export function Hud(): React.JSX.Element | null {
           <div className="slide">
             <button type="button" aria-label="Turn barrel left" disabled={!mine} onClick={() => g.nudge(1, 0)}>◀</button>
             <input type="range" min={0} max={180} step={1} value={180 - Math.round(t.angle)} disabled={!mine}
-              onChange={(e) => g.setAngle(+e.target.value)} />
+              aria-label="Barrel angle" aria-valuetext={aimText(t.angle)} onChange={(e) => g.setAngle(+e.target.value)} />
             <button type="button" aria-label="Turn barrel right" disabled={!mine} onClick={() => g.nudge(-1, 0)}>▶</button>
           </div>
           <label>Power <output>{Math.round(t.power)}</output></label>
           <div className="slide">
             <button type="button" aria-label="Less power" disabled={!mine} onClick={() => g.nudge(0, -1)}>−</button>
             <input type="range" min={5} max={100} step={1} value={Math.round(t.power)} disabled={!mine}
-              onChange={(e) => g.setPower(+e.target.value)} />
+              aria-label="Shot power" onChange={(e) => g.setPower(+e.target.value)} />
             <button type="button" aria-label="More power" disabled={!mine} onClick={() => g.nudge(0, 1)}>+</button>
           </div>
         </div>

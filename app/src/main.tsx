@@ -6,8 +6,12 @@ import { App } from './ui/App.tsx';
 import './styles.css';
 
 const controller = new GameController();
-// Exposed for end-to-end tests to drive and inspect the game.
-(window as unknown as { __crater?: GameController }).__crater = controller;
+// Exposed for end-to-end tests to drive and inspect the game. Attached only in dev (`vite dev`)
+// and in the e2e build (`vite build --mode e2e`, used by playwright.config.ts) — never in a
+// plain production `vite build`, so real deploys don't ship the hook.
+if (import.meta.env.DEV || import.meta.env.MODE === 'e2e') {
+  (window as unknown as { __crater?: GameController }).__crater = controller;
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

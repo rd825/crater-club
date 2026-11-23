@@ -9,12 +9,26 @@
       name="description"
       content="An original artillery game for two to eight tanks, in the classic turn-based tradition, played on ground you can dig, flood and rebuild."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Bricolage+Grotesque:wght@400;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/bricolage-grotesque.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/bowlby-one-400.woff2" crossorigin />
+    <style>
+      /* Self-hosted fonts (zero external requests; avoids FOUT). */
+      @font-face {
+        font-family: 'Bowlby One';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/bowlby-one-400.woff2') format('woff2');
+      }
+      /* Bricolage Grotesque ships as one variable file covering the 400–800 weight axis. */
+      @font-face {
+        font-family: 'Bricolage Grotesque';
+        font-style: normal;
+        font-weight: 400 800;
+        font-display: swap;
+        src: url('/fonts/bricolage-grotesque.woff2') format('woff2');
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -10,15 +10,28 @@ teams, draft/random deal, the playground, and snapshot/resume.
 
 ```
 npm install
-npm run dev         # Vite dev server
-npm run build       # typecheck + production bundle → dist/
-npm run preview     # serve the built bundle
-npm run typecheck   # tsc --noEmit (strict)
-npm run test        # Vitest: pure-engine unit + integration tests
-npm run test:e2e    # Playwright: full-match matrix, playground, human input, resume
+npm run dev          # Vite dev server
+npm run build        # typecheck + production bundle → dist/
+npm run build:single # one-file dist/index.html (JS+CSS inlined) for a server-less static deploy
+npm run preview      # serve the built bundle
+npm run typecheck    # tsc --noEmit (strict)
+npm run test         # Vitest: pure-engine unit + integration tests
+npm run test:e2e     # Playwright: match matrix, playground, human input, resume, perf probe
 ```
 
 One-time Playwright setup: `npx playwright install chromium`.
+
+CI runs typecheck + unit + e2e + build on every push/PR (`.github/workflows/ci.yml`).
+
+### Extra tooling
+
+- `node tests/visual/visual-diff.mjs` — screenshots the new build vs. the original root
+  `index.html` across a biome/time/weather matrix and prints a per-combo pixel-diff metric
+  (a gross-regression check; exact parity is impossible across independent RNG streams — see
+  `tests/visual/README.md`).
+- The e2e preview is built with `npm run build:e2e` (`vite build --mode e2e`), which is the
+  only build that exposes the `window.__crater` test hook. A plain `npm run build` (production)
+  omits it, so real deploys don't ship the hook.
 
 ## Architecture
 
@@ -47,8 +60,16 @@ tests/
   the DOM, canvas, WebAudio, or wall-clock timers. This is what lets a whole match run headless.
 - **Seeded RNG:** all randomness draws from a per-match `Rng`; a seed reproduces a match. The
   seed is stored in the `v:5` snapshot.
-- **Resume bridge:** `window.claude.hot` (`snapshot`/`ready`/`data`) is preserved so the engine's
-  `v:5` grid-RLE snapshot restores after reload — exercised by `tests/e2e/resume.spec.ts`.
+- **Resume:** each turn's `v:5` grid-RLE snapshot is mirrored to `localStorage`, so the menu
+  offers **Resume last match** after a reload or a trip back to the menu; the `window.claude.hot`
+  (`snapshot`/`ready`/`data`) host bridge is also preserved and takes precedence on boot. The
+  snapshot is cleared when a match ends. Exercised by `tests/e2e/resume.spec.ts`.
+- **Self-hosted fonts:** Bowlby One + Bricolage Grotesque ship as local woff2 under
+  `public/fonts/` (preloaded, `font-display: swap`), so the app makes **zero** external requests.
+- **Perf:** particles use a freelist and the per-frame transient arrays (parts/puffs/booms/bolts/
+  floats/projs) compact in place, cutting GC in heavy scenes. `tests/e2e/perf.spec.ts` logs a
+  frame-time baseline (avg ~0.8 ms); it confirmed AI planning peaks at ~5 ms/frame, so the AI
+  solver was left behavior-identical rather than perturbing match outcomes for no real gain.
 
 The original vanilla game remains at the repo root (`index.html`, `src/*.js`) for side-by-side
-parity comparison.
+parity comparison (see **Cleanup** in `todos.md` — its fate is the last open decision).
