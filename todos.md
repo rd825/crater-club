@@ -1,8 +1,8 @@
 # Crater Club — backlog
 
-Follow-ups for the React + TypeScript rebuild (`app/`). All but the final cleanup decision are
-done; `npm run typecheck`, `npm run test` (64 unit tests), `npm run test:e2e`, and `npm run build`
-are green.
+Follow-ups for the React + TypeScript rebuild (now the repo root; the original vanilla game is
+archived under `legacy/`). All items are done; `npm run typecheck`, `npm run test` (64 unit
+tests), `npm run test:e2e`, and `npm run build` are green.
 
 ## Performance
 - [x] **AI `aiSolve` speed — profiled; no behavior change shipped.** Both coarsening the search
@@ -17,17 +17,17 @@ are green.
       (`bits` already compacted in place in `stepBits`.)
 
 ## Parity hardening
-- [x] **Visual diff harness.** `app/tests/visual/visual-diff.mjs` screenshots the new build vs. the
-      original root `index.html` across a biome/time/weather matrix and prints a per-combo pixel
-      diff. Gross-regression check (exact parity is impossible across independent RNG streams —
-      documented in `app/tests/visual/README.md`).
+- [x] **Visual diff harness.** `tests/visual/visual-diff.mjs` screenshots the new build vs. the
+      archived vanilla `legacy/index.html` across a biome/time/weather matrix and prints a per-combo
+      pixel diff. Gross-regression check (exact parity is impossible across independent RNG streams
+      — documented in `tests/visual/README.md`).
 - [x] Audit the rarer weapon visuals (parachute canopy, buzzsaw teeth, prism rays, black-hole
       swirl, smoke screens). Verdict: all five are faithful ports of the original `draw()` /
       sprites — no fixes needed.
-- [x] Port `tests/perf.py` → `app/tests/e2e/perf.spec.ts` (frame-time avg/p95/max under an 8-tank
+- [x] Port `tests/perf.py` → `tests/e2e/perf.spec.ts` (frame-time avg/p95/max under an 8-tank
       load; logs a baseline and asserts generous CI-safe guardrails). Baseline on this machine:
       avg 0.8 ms, p95 1.1 ms, max 6.1 ms.
-- [x] Targeted unit tests — `app/tests/unit/mechanics.test.ts`: `encore`/`mystery` resolution,
+- [x] Targeted unit tests — `tests/unit/mechanics.test.ts`: `encore`/`mystery` resolution,
       `hiccup` off-line fire, lava burn at the end of a tank's own turn, health-mode resupply.
 
 ## Product / UX
@@ -48,12 +48,11 @@ are green.
 - [x] Single-file output via `vite-plugin-singlefile`: `npm run build:single` → one
       `dist/index.html` (JS+CSS inlined; the two self-hosted woff2 fonts sit beside it).
 - [x] Self-host the Google Fonts (Bowlby One, Bricolage Grotesque as a single variable file) under
-      `app/public/fonts/`, preloaded — the app now makes **zero** external network requests.
+      `public/fonts/`, preloaded — the app now makes **zero** external network requests.
 
 ## Cleanup
-- [ ] **Decide the fate of the original vanilla game at the repo root** (`index.html`, `src/*.js`,
-      `tests/*.py`). Kept for side-by-side parity checks, which are now automated (visual-diff
-      harness + the weapon audit signed off parity). Options: (a) archive it under `legacy/`;
-      (b) make `app/` the repo root and drop the vanilla copy; (c) keep as-is. This is a repo
-      restructuring with irreversible moves, so it's left for an explicit decision rather than done
-      unilaterally.
+- [x] **Repo restructured.** `app/` was lifted to the repo root (it is now a standard Vite project
+      at the top level), and the original single-file vanilla game was archived under `legacy/`
+      (`legacy/index.html`, `legacy/src/*.js` + `build.py`, `legacy/tests/*.py`, and its old
+      `CLAUDE.md`/`README.md`). History was preserved via `git mv`. The visual-diff harness and CI
+      paths were updated to match.

@@ -10,13 +10,13 @@ It is a **baseline / reporting tool, not a pass/fail gate** — it always exits 
 
 1. Launches headless Chromium (Playwright's bundled browser, or `CHROME` if set;
    always with `--no-sandbox`).
-2. **Original build** — loads the committed `index.html` at the repo root over
+2. **Original build** — loads the archived vanilla `legacy/index.html` over
    `file://`, drives its DOM setup screen (`#set-biome` / `#set-time` /
    `#set-weather`, player 0 = human, then `#btnStart`) and screenshots the game
    canvas (`#field`).
 3. **New build** — spawns the project's own Vite **dev** server on a throwaway
-   port (`5199` by default, `--strictPort`, cwd `app/`, so it never collides with
-   the e2e preview on `4173` and never writes to `app/dist`), waits for it, loads
+   port (`5199` by default, `--strictPort`, cwd the repo root, so it never collides
+   with the e2e preview on `4173` and never writes to `dist`), waits for it, loads
    `http://localhost:5199/`, starts a match through the `window.__crater`
    controller hook (`engine.newGame({ biome, time, weather, seed, ... }, false)`)
    and screenshots the same `#field` canvas.
@@ -32,7 +32,7 @@ math.
 
 ## How to run
 
-From the `app/` directory:
+From the repo root:
 
 ```
 node tests/visual/visual-diff.mjs        # full matrix
@@ -45,8 +45,7 @@ Environment variables:
 - `VISUAL_PORT=5199` — dev-server port (strict).
 - `VISUAL_LIMIT=1` — limit the number of combos (same as the positional arg).
 
-Outputs land in `app/tests/visual/out/` (git-ignore this if you don't want the
-PNGs committed).
+Outputs land in `tests/visual/out/` (git-ignored).
 
 ## The RNG / timing caveat — read this before trusting a number
 
@@ -71,5 +70,5 @@ wrong side-by-side, is the signal worth investigating.
 
 If the Vite dev server fails to come up after three attempts, the harness still
 runs: it captures the **original** build only, prints `n/a` in the new-build
-column, and tells you to start the dev server yourself (`cd app && npm run dev`)
-and re-run. The diff math works given any two PNG paths.
+column, and tells you to start the dev server yourself (`npm run dev`) and re-run.
+The diff math works given any two PNG paths.

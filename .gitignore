@@ -1,4 +1,14 @@
-crater-club.zip
+node_modules
+dist
+dist-ssr
+coverage
+test-results
+playwright-report
+.playwright
+tests/visual/out
+*.local
+# legacy vanilla game (Python tooling)
 __pycache__/
 *.pyc
+crater-club.zip
 .DS_Store
