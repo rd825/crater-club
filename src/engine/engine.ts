@@ -27,6 +27,10 @@ import type {
   Game, Grid, Tank, Projectile, MatchConfig, Env, DraftView, GameOverResult, Preview, Part,
 } from './types.ts';
 
+/** A no-damage "support" weapon (smoke, bubble, bunker, hop, dirt): useful, but it can't finish a
+ *  kill. The deal and the resupply cap how many of these one tank can be handed. */
+const isSupportWeapon = (id: string): boolean => WEAPONS[id].spec.dmg === 0;
+
 type Fog = { x: number; y: number; w: number; h: number; v: number };
 type Cloud = { x: number; y: number; v: number; parts: { dx: number; dy: number; w: number; h: number }[] };
 type Solve = { a: number; p: number; miss: number };
@@ -190,11 +194,24 @@ export class Engine {
       S.phase = 'draft'; this.renderDraft(); this.ui.onSync(); this.maybeAIPick();
     } else {
       const give = (c: { id: string; by: number }, t: Tank) => { c.by = t.id; t.weapons.push(c.id); };
-      for (const c of S.pool) {
+      // Keep every hand playable: cap the no-damage "support" weapons (smoke, bubble, bunker,
+      // hop, dirt) per tank so a random deal can't saddle one player with a pile of them and too
+      // few ways to actually deal damage. Deal damage weapons first, support last, so the cap
+      // only ever trims the unlucky extras.
+      const supCap = Math.max(1, Math.floor(S.per / 4));
+      const supCount = (t: Tank) => { let s = 0; for (const id of t.weapons) if (isSupportWeapon(id)) s++; return s; };
+      const order = S.pool.map((_c, i) => i).sort((a, b) => (isSupportWeapon(S.pool[a].id) ? 1 : 0) - (isSupportWeapon(S.pool[b].id) ? 1 : 0));
+      for (const idx of order) {
+        const c = S.pool[idx], sup = isSupportWeapon(c.id);
         let best: Tank | null = null;
-        for (const t of S.tanks) if (t.weapons.length < S.per && this.holds(t, c.id) < S.maxHold && (!best || t.weapons.length < best.weapons.length)) best = t;
+        for (const t of S.tanks) {
+          if (t.weapons.length >= S.per || this.holds(t, c.id) >= S.maxHold) continue;
+          if (sup && supCount(t) >= supCap) continue;
+          if (!best || t.weapons.length < best.weapons.length) best = t;
+        }
         if (best) give(c, best);
       }
+      // Fill any hand still short (rare: not enough damage cards in the bag to honour every cap).
       for (const c of S.pool) if (c.by < 0) { const t = S.tanks.find((k) => k.weapons.length < S.per); if (t) give(c, t); }
       this.startAim();
     }
@@ -250,12 +267,23 @@ export class Engine {
     this.scheduler.set(() => { if (this.S === g && g.phase === (phase || 'aim')) fn(); }, ms);
   }
 
+  /** A fresh hand of `n` weapons with at most ~a quarter being no-damage support weapons, so a
+   *  resupply can't leave a tank unable to finish anyone off. Draws the same single shuffle the
+   *  old `shuffle(...).slice(0, n)` did, so the RNG sequence is unchanged. */
+  private dealArsenal(n: number): string[] {
+    const cap = Math.max(1, Math.floor(n / 4)), bag = this.shuffle(WEAPON_IDS.slice());
+    const out: string[] = []; let sup = 0;
+    for (const id of bag) { if (out.length >= n) break; if (isSupportWeapon(id)) { if (sup >= cap) continue; sup++; } out.push(id); }
+    for (const id of bag) { if (out.length >= n) break; if (!out.includes(id)) out.push(id); }
+    return out;
+  }
+
   startAim(): void {
     const S = this.S;
     this.regenSources();
     S.phase = 'aim'; S.settleT = 0; S.aiPlan = null; this.armed = false; this.preview = null;
     const t = this.cur(); t.shaped = false; t.fuel = 2;
-    if (S.health && !t.weapons.length) { t.weapons = this.shuffle(WEAPON_IDS.slice()).slice(0, ARSENAL); t.sel = 0; this.floatText(t, 'resupplied', t.color); }
+    if (S.health && !t.weapons.length) { t.weapons = this.dealArsenal(ARSENAL); t.sel = 0; this.floatText(t, 'resupplied', t.color); }
     t.sel = clamp(t.sel, 0, Math.max(0, t.weapons.length - 1));
     S.banner = S.sandbox ? (S.shotDmg > 0 ? { text: S.shotDmg + ' damage', t: 0, c: t.color } : null) : { text: t.isAI ? t.name + ' takes aim' : t.name + "'s turn", t: 0, c: t.color };
     this.ui.onSync(); this.saveStable();
@@ -365,10 +393,11 @@ export class Engine {
   }
 
   playCfg(settings: { players: { type: PlayerType }[]; wind: string; size: string; biome: string; time: string; weather: string }): MatchConfig {
-    const humans = settings.players.filter((p) => p.type === 'human').map(() => ({ type: 'human' as PlayerType }));
-    if (!humans.length) humans.push({ type: 'human' });
-    const targets = clamp(Math.max(2, settings.players.length - humans.length), 0, 8 - humans.length);
-    return { sandbox: true, players: humans.concat(Array.from({ length: targets }, () => ({ type: 'target' as PlayerType }))), mode: 'volleys', volleys: 99, health: 150, teams: 'ffa', deal: 'random', wind: settings.wind, size: settings.size, biome: settings.biome, time: settings.time, weather: settings.weather };
+    // The playground is always a solo range: exactly one human, the rest stationary targets to
+    // practise on — regardless of how many players the menu is set up for.
+    const targets = clamp(Math.max(2, settings.players.length - 1), 0, 7);
+    const players = [{ type: 'human' as PlayerType }].concat(Array.from({ length: targets }, () => ({ type: 'target' as PlayerType })));
+    return { sandbox: true, players, mode: 'volleys', volleys: 99, health: 150, teams: 'ffa', deal: 'random', wind: settings.wind, size: settings.size, biome: settings.biome, time: settings.time, weather: settings.weather };
   }
   demoCfg(): MatchConfig {
     return { players: [{ type: 'veteran' }, { type: 'regular' }, { type: 'ace' }, { type: 'regular' }], mode: 'volleys', volleys: 5, health: 150, teams: 'ffa', deal: 'random', wind: 'breeze', size: 'medium', biome: 'random', time: 'random', weather: 'random' };
