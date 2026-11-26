@@ -66,11 +66,11 @@ describe('signature effects (the parity heart)', () => {
     void me;
   });
 
-  it('Soap Bubble grants the firer a 35 shield (synchronous)', () => {
+  it('Soap Bubble wraps the firer in a one-hit shield (synchronous)', () => {
     const { eng, me } = arena();
     eng.loadAndAim('bubble', null);
     eng.fire();
-    expect(me.shield).toBe(35);
+    expect(me.shield).toBeGreaterThan(0);
   });
 
   it('Bunker builds BUILT walls beside the firer (synchronous)', () => {
@@ -147,6 +147,33 @@ describe('signature effects (the parity heart)', () => {
     expect(WEAPONS.dirt.spec.dmg).toBe(0);
     expect(totalTaken(eng)).toBe(0);
   });
+
+  it('Homer curves toward the nearest rival on the way down', () => {
+    // Fire straight up with the foe parked just to one side, inside the homing window. With calm
+    // wind a plain shell comes straight back down on the firer; the homer must drift to the foe.
+    const land = (id: string): { dx: number; dir: number } => {
+      const { eng } = arena(111);
+      const me = eng.cur();
+      const foe = eng.S.tanks.find((t) => t.id !== me.id)!;
+      const dir = foe.x >= me.x ? 1 : -1;
+      foe.x = me.x + dir * 240; // definite side, inside the 320px homing range
+      me.weapons = [id]; me.sel = 0; me.pending = null;
+      me.angle = 90; me.power = 60; // straight up
+      eng.S.phase = 'aim';
+      eng.fire();
+      let lastX = me.x;
+      for (let i = 0; i < 2500 && eng.S.projs.length; i++) {
+        eng.advance(0.05);
+        if (eng.S.projs.length) lastX = eng.S.projs[0].x;
+      }
+      return { dx: lastX - me.x, dir };
+    };
+    const shell = land('shell'); // control: no homing
+    const homer = land('homer');
+    expect(Math.abs(shell.dx)).toBeLessThan(20); // the control barely drifts
+    expect(Math.sign(homer.dx)).toBe(homer.dir); // the homer swings toward the foe's side
+    expect(Math.abs(homer.dx)).toBeGreaterThan(40); // ...and meaningfully so
+  });
 });
 
 describe('damage model', () => {
@@ -159,15 +186,15 @@ describe('damage model', () => {
     expect(totalTaken(eng)).toBeGreaterThan(0);
   });
 
-  it('a soap-bubble shield absorbs the next damage', () => {
-    const { eng, me, foe } = arena(77);
-    // give the FOE a shield, then hit it
-    foe.shield = 35;
+  it('a soap-bubble shield fully blocks one hit, then pops', () => {
+    // seed 111 is the same setup as the shell-hits-target test above, so the shell connects.
+    const { eng, me, foe } = arena(111);
+    foe.shield = 1; // one-hit bubble
     eng.loadAndAim('shell', foe);
     eng.fire();
     resolve(eng);
-    // the foe's shield should have absorbed some/all of the first damage
-    expect(foe.shield).toBeLessThanOrEqual(35);
+    expect(foe.shield).toBe(0); // the hit popped it
+    expect(eng.S.taken[foe.id] || 0).toBe(0); // and the foe took no damage from the blocked hit
     void me;
   });
 });

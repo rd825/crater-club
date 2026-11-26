@@ -149,10 +149,13 @@ export class Renderer {
 
     const tr = S.phase === 'aim' && !S.demo && S.env.weather !== 'fog' ? S.traces[S.turn] : null;
     if (tr && tr.length > 3) {
-      ctx.setLineDash([2, 7]); ctx.beginPath(); ctx.moveTo(tr[0], tr[1]); for (let i = 2; i < tr.length; i += 2) ctx.lineTo(tr[i], tr[i + 1]);
-      ctx.strokeStyle = INK; ctx.globalAlpha = 0.3; ctx.lineWidth = 3; ctx.stroke();
-      ctx.strokeStyle = eng.cur().color; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      // Last shot's path. A dark halo keeps it readable over bright skies; the bold coloured
+      // dots carry it over dark ones. (Kept behind the terrain so it reads as rising from the gun.)
+      ctx.lineCap = 'round'; ctx.setLineDash([2, 6]);
+      ctx.beginPath(); ctx.moveTo(tr[0], tr[1]); for (let i = 2; i < tr.length; i += 2) ctx.lineTo(tr[i], tr[i + 1]);
+      ctx.strokeStyle = INK; ctx.globalAlpha = 0.55; ctx.lineWidth = 5; ctx.stroke();
+      ctx.strokeStyle = eng.cur().color; ctx.globalAlpha = 1; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.setLineDash([]); ctx.lineCap = 'butt'; ctx.globalAlpha = 1;
     }
 
     g = ctx.createLinearGradient(0, 200, 0, H); g.addColorStop(0, C.backTop); g.addColorStop(1, C.backBot);

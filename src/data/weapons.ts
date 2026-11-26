@@ -105,7 +105,7 @@ export const WEAPONS: Record<string, Weapon> = {
   hole: { name: 'Black Hole', desc: 'Opens a singularity that eats the ground and drags tanks in, then pops.', rating: 3.8, spec: { r: 60, dmg: 20, kind: 'hole', danger: 210 } },
   swarm: { name: 'Hornet Nest', desc: 'Cracks open and releases eight hornets that chase the nearest rival. Ground stops them.', rating: 3.2, spec: { r: 20, dmg: 6, kind: 'swarm', danger: 90 } },
   hiccup: { name: 'Hiccup Gas', desc: 'Any tank caught in the cloud hiccups on its next shot and fires off line.', rating: 2.6, spec: { r: 20, dmg: 6, kind: 'hiccup', danger: 90 } },
-  bubble: { name: 'Soap Bubble', desc: 'Fires nothing. Wraps your tank in a bubble that soaks up the next 35 damage.', rating: 1.6, spec: { r: 0, dmg: 0, self: 'bubble' } },
+  bubble: { name: 'Soap Bubble', desc: 'Fires nothing. Wraps your tank in a bubble that blocks the next hit entirely, then pops.', rating: 1.6, spec: { r: 0, dmg: 0, self: 'bubble' } },
   lift: { name: 'Mortar', desc: 'A heavy shell on a steep, lazy arc. Wide, reliable blast where it drops.', rating: 3, spec: { r: 60, dmg: 32, danger: 70 } },
   geyser: { name: 'Geyser', desc: 'Erupts real water, floods the hole, and throws the tank it hits into the air.', rating: 2.8, spec: { r: 36, dmg: 14, kind: 'geyser' } },
   thunder: { name: 'Thunderhead', desc: 'Calls four lightning strikes somewhere around where it lands.', rating: 3.4, spec: { r: 14, dmg: 5, kind: 'thunder', danger: 170 } },

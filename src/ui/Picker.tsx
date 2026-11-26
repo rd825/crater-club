@@ -18,7 +18,7 @@ export function Picker(): React.JSX.Element | null {
             const w = WEAPONS[id];
             return (
               <button key={id} type="button" className="card" style={i === t.sel ? { ['--c' as string]: t.color } : undefined}
-                onClick={() => { g.selectWeapon(i); g.closePicker(); }}>
+                onClick={() => { g.closePicker(); g.selectWeapon(i); }}>
                 <img src={iconSrc(id)} alt="" width={32} height={32} />
                 <b>{w.name}</b>
                 <small>{w.desc}</small>
