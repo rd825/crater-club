@@ -37,8 +37,8 @@ describe('Encore / Mystery resolution', () => {
     eng.S.lastId = 'bubble'; // last weapon was Soap Bubble (a synchronous self-shield)
     me.weapons = ['encore']; me.sel = 0; me.shield = 0;
     eng.fire();
-    // Encore resolved to 'bubble' and ran its effect this turn.
-    expect(me.shield).toBe(35);
+    // Encore resolved to 'bubble' and ran its effect this turn (one-hit shield up).
+    expect(me.shield).toBeGreaterThan(0);
     expect(eng.S.lastId).toBe('bubble');
   });
 
@@ -47,7 +47,7 @@ describe('Encore / Mystery resolution', () => {
     const me = eng.S.tanks[0];
     me.weapons = ['mystery']; me.sel = 0; me.pending = 'bubble'; me.shield = 0;
     eng.fire();
-    expect(me.shield).toBe(35); // the pending Soap Bubble ran
+    expect(me.shield).toBeGreaterThan(0); // the pending Soap Bubble ran
     expect(me.pending).toBeNull(); // pending is consumed
     expect(eng.S.lastId).toBe('bubble'); // and recorded as the last weapon
   });

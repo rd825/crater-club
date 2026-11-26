@@ -125,7 +125,7 @@ export function Hud(): React.JSX.Element | null {
             <div className="chips">
               {t.weapons.map((id, i) => (
                 <button key={i} type="button" className={'chip' + (i === t.sel ? ' on' : '')} disabled={!mine}
-                  aria-pressed={i === t.sel} title={WEAPONS[id].desc} onClick={() => g.selectWeapon(i)}>
+                  aria-pressed={i === t.sel} title={WEAPONS[id].desc} onClick={(e) => { g.selectWeapon(i); e.currentTarget.blur(); }}>
                   <img src={iconSrc(id)} alt="" width={16} height={16} />{chipName(S.lastId, id)}
                 </button>
               ))}

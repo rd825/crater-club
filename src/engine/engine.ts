@@ -507,7 +507,7 @@ export class Engine {
       for (const d of [-1, 1]) { const x0 = t.x + d * 34, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 6, t.y - 30)); this.fillCells(Math.min(x0, x0 + d * 12), f - 52, Math.max(x0, x0 + d * 12), f + 1, BUILT, grid.notSolid); this.smokePuff(x0, f - 20, 14, false); }
       this.audio.thud();
     } else if (sp.self === 'bubble') {
-      t.shield = 35; S.booms.push({ x: t.x, y: t.y - 8, r: 26, t: 0, c: '#bfe8ff', soft: true }); this.audio.pop();
+      t.shield = 1; S.booms.push({ x: t.x, y: t.y - 8, r: 26, t: 0, c: '#bfe8ff', soft: true }); this.audio.pop();
     } else {
       const shoot = (first: boolean) => {
         if (t.dead) return;
@@ -841,7 +841,8 @@ export class Engine {
     const S = this.S;
     if (k.dead) return;
     amt = Math.max(1, Math.round(amt));
-    if (k.shield > 0) { const a = Math.min(k.shield, amt); k.shield -= a; amt -= a; this.floatText(k, 'blocked', '#bfe8ff'); if (amt <= 0) return; }
+    // Soap Bubble: a one-hit shield. It swallows the whole incoming hit, whatever its size, then pops.
+    if (k.shield > 0) { k.shield = 0; this.floatText(k, 'blocked', '#bfe8ff'); S.booms.push({ x: k.x, y: k.y - 8, r: 26, t: 0, c: '#bfe8ff', soft: true }); this.audio.pop(); return; }
     k.hitLast += amt;
     if (amt >= 30) this.drama(k.x, k.y - 10);
     const friendly = owner >= 0 && this.sameTeam(k.id, owner);
