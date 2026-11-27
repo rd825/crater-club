@@ -73,11 +73,10 @@ describe('signature effects (the parity heart)', () => {
     expect(me.shield).toBeGreaterThan(0);
   });
 
-  it('Bunker builds BUILT walls beside the firer (synchronous)', () => {
-    const { eng } = arena();
+  it('the Wall tool raises BUILT brick walls on both sides of the firer', () => {
+    const { eng, me } = arena();
     const before = countMat(eng, BUILT);
-    eng.loadAndAim('bags', null);
-    eng.fire();
+    eng.doShape(me, 'wall');
     expect(countMat(eng, BUILT)).toBeGreaterThan(before);
   });
 
@@ -86,14 +85,6 @@ describe('signature effects (the parity heart)', () => {
     const yBefore = me.y;
     eng.doShape(me, 'burrow');
     expect(me.y).toBeLessThan(yBefore); // y grows downward, so "up" is smaller
-  });
-
-  it('Smoke Screen deploys a smoke cloud', () => {
-    const { eng, foe } = arena();
-    eng.loadAndAim('smoke', foe);
-    eng.fire();
-    resolve(eng);
-    expect(eng.S.smokes.length).toBeGreaterThan(0);
   });
 
   it('Sticky Bomb plants a bomb that waits for the next shot (fuse > 0)', () => {
@@ -264,5 +255,25 @@ describe('reworked weapons & terraform', () => {
     expect(eng.doShape(me, 'dig')).toBe(true); // a different tool still works
     expect(eng.doShape(me, 'dig')).toBe(false); // ...also once only
     expect(me.usedShapes.sort()).toEqual(['dig', 'wall']);
+  });
+
+  it('Nuke out-damages a plain shell on the same shot', () => {
+    const hit = (id: string): number => {
+      const { eng, foe } = arena(111);
+      eng.loadAndAim(id, foe); eng.fire(); resolve(eng);
+      return eng.S.taken[foe.id] || 0;
+    };
+    expect(hit('nuke')).toBeGreaterThan(hit('shell')); // the big one simply hits harder
+  });
+
+  it('Coin Toss sometimes lands golden for triple damage', () => {
+    const hits: number[] = [];
+    for (let s = 1; s <= 30; s++) {
+      const { eng, foe } = arena(s);
+      eng.loadAndAim('cointoss', foe); eng.fire(); resolve(eng);
+      const d = eng.S.taken[foe.id] || 0; if (d > 0) hits.push(d);
+    }
+    expect(Math.max(...hits)).toBeGreaterThan(36); // only a golden (x3) flip reaches here (base ~18)
+    expect(Math.min(...hits)).toBeLessThan(30); // ...and a plain flip lands normally
   });
 });

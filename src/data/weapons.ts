@@ -26,7 +26,7 @@ export type WeaponKind =
   | 'sticky'
   | 'saw';
 
-export type SelfKind = 'bags' | 'bubble';
+export type SelfKind = 'bubble';
 
 export interface WeaponSpec {
   r: number; // blast radius
@@ -45,6 +45,7 @@ export interface WeaponSpec {
   chute?: boolean;
   ghost?: boolean;
   meta?: boolean; // encore / mystery
+  coin?: boolean; // Coin Toss: on-impact coin flip that triples damage when it lands golden
   tracer?: boolean;
   bounce?: number;
   grow?: number;
@@ -89,7 +90,7 @@ export const WEAPONS: Record<string, Weapon> = {
   skipper: { name: 'Skipper', desc: 'Skips three times, chipping the ground at each touch, then goes off.', rating: 3, spec: { r: 50, dmg: 30, skip: 3 } },
   mole: { name: 'Mole', desc: 'Digs a real tunnel sideways through the ground and blows up when it reaches a tank.', rating: 3.2, spec: { r: 46, dmg: 30, kind: 'mole' } },
   sink: { name: 'Sinkhole', desc: 'The ground under it simply goes away, leaving a wide pit.', rating: 2.4, spec: { r: 60, dmg: 12, kind: 'sink', danger: 100 } },
-  bags: { name: 'Bunker', desc: 'Fires nothing. Builds a brick wall on each side of your tank.', rating: 1.2, spec: { r: 0, dmg: 0, self: 'bags' } },
+  cointoss: { name: 'Coin Toss', desc: 'Flip a coin downrange: lands golden and it hits for triple, otherwise an honest shot.', rating: 3, spec: { r: 40, dmg: 18, coin: true } },
   hop: { name: 'Hop Shell', desc: 'Moves your tank to where it lands. Hit a tank and you trade places.', rating: 1.5, spec: { r: 0, dmg: 0, kind: 'hop' } },
   thump: { name: 'Thumper', desc: 'A huge shockwave that leaves the ground alone and throws tanks sideways.', rating: 2.8, spec: { r: 150, dmg: 16, kind: 'thump' } },
   airburst: { name: 'Airburst', desc: 'Pops just above the ground and sprays nine pellets downward.', rating: 3.4, spec: { r: 22, dmg: 10, burst: true, danger: 120 } },
@@ -109,7 +110,7 @@ export const WEAPONS: Record<string, Weapon> = {
   lift: { name: 'Mortar', desc: 'A heavy shell on a steep, lazy arc. Wide, reliable blast where it drops.', rating: 3, spec: { r: 60, dmg: 32, danger: 70 } },
   geyser: { name: 'Geyser', desc: 'Erupts real water, floods the hole, and throws the tank it hits into the air.', rating: 2.8, spec: { r: 36, dmg: 14, kind: 'geyser' } },
   thunder: { name: 'Thunderhead', desc: 'Calls four lightning strikes somewhere around where it lands.', rating: 3.4, spec: { r: 14, dmg: 5, kind: 'thunder', danger: 170 } },
-  smoke: { name: 'Smoke Screen', desc: 'Hides a wide patch of the map for two rounds. Computers aim worse into it.', rating: 1.4, spec: { r: 0, dmg: 0, kind: 'smoke' } },
+  nuke: { name: 'Nuke', desc: 'The big one. A compact blast that hits harder than anything else on the field.', rating: 4.6, spec: { r: 50, dmg: 60, danger: 110 } },
   pinball: { name: 'Pinball', desc: 'Bounces off the side walls of the map. Try a bank shot.', rating: 2.8, spec: { r: 46, dmg: 28, walls: true } },
   chute: { name: 'Parachute Bomb', desc: 'Opens a chute at the top of its arc and drifts down on the wind. Enormous blast.', rating: 3.6, spec: { r: 76, dmg: 34, chute: true } },
   prism: { name: 'Prism', desc: 'Hangs in the air and burns nine light rays down into the ground.', rating: 3.2, spec: { r: 12, dmg: 8, kind: 'prism', danger: 150 } },
