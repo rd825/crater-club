@@ -245,13 +245,13 @@ export class GameController {
     const keys = Object.keys(SHAPES) as ShapeTool[];
     const i = (keys.indexOf(this.selTool) + d + keys.length) % keys.length;
     this.selTool = keys[i];
-    this.engine.setPreview(this.engine.cur().shaped ? null : this.selTool);
+    this.engine.setPreview(this.engine.S.sandbox || !this.engine.cur().usedShapes.includes(this.selTool) ? this.selTool : null);
     this.store.bump();
   }
   /** Enter: apply the highlighted shaping tool. */
   applyTool(): void { this.shapeNow(this.selTool); }
   hoverTool(tool: string | null): void {
-    if (tool && this.canHuman() && !this.engine.cur().shaped) this.engine.setPreview(tool);
+    if (tool && this.canHuman() && (this.engine.S.sandbox || !this.engine.cur().usedShapes.includes(tool))) this.engine.setPreview(tool);
     else if (!tool) this.engine.setPreview(null);
     this.store.bump();
   }

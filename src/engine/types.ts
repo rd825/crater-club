@@ -88,7 +88,8 @@ export interface Tank {
   hiccup: boolean;
   pending: string | null;
   recoil: number;
-  shaped: boolean;
+  /** Which ground-shaping tools this tank has already spent this match (each tool is once per match). */
+  usedShapes: string[];
   fallT: number;
 }
 
@@ -120,6 +121,8 @@ export interface Projectile extends WeaponSpec {
   life?: number;
   pierced?: boolean;
   pierceT?: number;
+  /** Phantom: tank ids already pierced on this flight, so it passes through rather than re-hitting them. */
+  hitIds?: number[];
 }
 
 export interface Boom {

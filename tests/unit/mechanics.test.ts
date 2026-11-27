@@ -54,18 +54,19 @@ describe('Encore / Mystery resolution', () => {
 });
 
 describe('Hiccup', () => {
-  it('a hiccup throws the shot off-line and then clears', () => {
+  it('a hiccup fires the next shot inverted (mirrored angle, flipped power) and then clears', () => {
     const eng = makeEng();
     const me = eng.S.tanks[0];
     me.weapons = ['shell']; me.sel = 0; me.angle = 70; me.power = 60;
     me.hiccup = true;
     eng.fire();
     expect(me.hiccup).toBe(false); // consumed
+    expect(me.angle).toBe(110); // mirrored across vertical: 180 - 70
+    expect(me.power).toBe(45); // flipped within [5,100]: 105 - 60
     const p = eng.S.projs[0];
     expect(p).toBeTruthy();
     const launchDeg = (Math.atan2(-p.vy, p.vx) * 180) / Math.PI;
-    // fire() adds off = ±rand(6..13)° to the aim, so the muzzle angle deviates by >=6° from 70°
-    expect(Math.abs(launchDeg - 70)).toBeGreaterThanOrEqual(5);
+    expect(Math.abs(launchDeg - 110)).toBeLessThan(1); // the slug leaves on the mirrored line
   });
 
   it('without a hiccup the shot launches on the aimed line', () => {

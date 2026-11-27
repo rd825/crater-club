@@ -116,7 +116,7 @@ export class Engine {
       id, name: SEATS[id].name, color: SEATS[id].c, x, y: 0, vy: 0, falling: false, afloat: false,
       angle: x < this.W / 2 ? 60 : 120, power: 60, weapons: [], sel: 0, fuel: 2, moveLeft: 0, moveDir: 0,
       isAI: ai, level: ai && type !== 'target' ? type : null, hitLast: 0, rangeN: 0, lastFoe: -1,
-      hp, dead: false, shield: 0, hiccup: false, pending: null, recoil: 0, shaped: false, fallT: 0,
+      hp, dead: false, shield: 0, hiccup: false, pending: null, recoil: 0, usedShapes: [], fallT: 0,
       hi: mix(SEATS[id].c, '#ffffff', 0.42), lo: mix(SEATS[id].c, '#120d1c', 0.4),
     };
   }
@@ -282,7 +282,7 @@ export class Engine {
     const S = this.S;
     this.regenSources();
     S.phase = 'aim'; S.settleT = 0; S.aiPlan = null; this.armed = false; this.preview = null;
-    const t = this.cur(); t.shaped = false; t.fuel = 2;
+    const t = this.cur(); t.fuel = 2; // usedShapes is NOT reset here — shaping is capped per match, not per turn
     if (S.health && !t.weapons.length) { t.weapons = this.dealArsenal(ARSENAL); t.sel = 0; this.floatText(t, 'resupplied', t.color); }
     t.sel = clamp(t.sel, 0, Math.max(0, t.weapons.length - 1));
     S.banner = S.sandbox ? (S.shotDmg > 0 ? { text: S.shotDmg + ' damage', t: 0, c: t.color } : null) : { text: t.isAI ? t.name + ' takes aim' : t.name + "'s turn", t: 0, c: t.color };
@@ -369,7 +369,7 @@ export class Engine {
     this.stable = {
       v: 5, seed: S.cfg.seed, cfg: S.cfg, env: S.env, tracer: S.tracerRound, marks: S.marks, grid: grid.encodeGrid(this.G),
       scores: S.scores.slice(), turn: S.turn, round: S.round, shots: S.shots.slice(), wind: S.wind, props: S.props, bombs: S.bombs, smokes: S.smokes, lastId: S.lastId,
-      tanks: S.tanks.map((t) => ({ x: t.x, y: t.y, angle: t.angle, power: t.power, weapons: t.weapons.slice(), sel: t.sel, fuel: t.fuel, hp: t.hp, dead: t.dead, shield: t.shield, hiccup: t.hiccup })),
+      tanks: S.tanks.map((t) => ({ x: t.x, y: t.y, angle: t.angle, power: t.power, weapons: t.weapons.slice(), sel: t.sel, fuel: t.fuel, hp: t.hp, dead: t.dead, shield: t.shield, hiccup: t.hiccup, usedShapes: t.usedShapes.slice() })),
     };
   }
 
@@ -415,7 +415,8 @@ export class Engine {
   }
   doShape(t: Tank, tool: string): boolean {
     const S = this.S;
-    if ((t.shaped && !S.sandbox) || S.phase !== 'aim' || S.tracerRound || t.moveLeft > 0) return false;
+    // Each shaping tool is usable once per match (unlimited in the playground).
+    if ((!S.sandbox && t.usedShapes.includes(tool)) || S.phase !== 'aim' || S.tracerRound || t.moveLeft > 0) return false;
     if (tool === 'dig') {
       // A longer, conically-widening tunnel along the barrel line.
       const a = (t.angle * Math.PI) / 180;
@@ -431,7 +432,8 @@ export class Engine {
       const b = this.shapeBox(t, tool);
       this.fillCells(b[0], b[1], b[2], b[3], BUILT, grid.notSolid);
     }
-    t.shaped = !S.sandbox; this.preview = null;
+    if (!S.sandbox) t.usedShapes.push(tool);
+    this.preview = null;
     for (const k of S.tanks) k.rangeN = 0;
     if (S.puffs.length < 60) this.smokePuff(t.x, t.y - 8, 12, false);
     this.audio.thud(); this.ui.onSync(); return true;
@@ -501,8 +503,10 @@ export class Engine {
     t.sel = clamp(t.sel, 0, Math.max(0, t.weapons.length - 1));
     if (!S.health && !S.sandbox) S.shots[t.id]--;
     S.phase = 'flight'; S.settleT = 0; S.curTrace = []; S.aiPlan = null; S.hazardDone = false;
-    let off = 0;
-    if (t.hiccup) { t.hiccup = false; off = this.rand(6, 13) * (this.rnd() < 0.5 ? -1 : 1); this.floatText(t, 'hic!', '#a6e86a'); }
+    const off = 0;
+    // Hiccup Gas: the next shot comes out inverted — angle mirrored across vertical (180 - angle),
+    // power flipped within its range (105 - power). A nasty surprise the shooter can't see coming.
+    if (t.hiccup) { t.hiccup = false; t.angle = clamp(180 - t.angle, AMIN, AMAX); t.power = clamp(105 - t.power, 5, 100); this.floatText(t, 'hic!', '#a6e86a'); }
     if (sp.self === 'bags') {
       for (const d of [-1, 1]) { const x0 = t.x + d * 34, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 6, t.y - 30)); this.fillCells(Math.min(x0, x0 + d * 12), f - 52, Math.max(x0, x0 + d * 12), f + 1, BUILT, grid.notSolid); this.smokePuff(x0, f - 20, 14, false); }
       this.audio.thud();
@@ -535,12 +539,12 @@ export class Engine {
     if (spec.walls) { if (p.x < 0 && p.vx < 0) { p.x = -p.x; p.vx *= -0.9; } else if (p.x > this.W && p.vx > 0) { p.x = 2 * this.W - p.x; p.vx *= -0.9; } }
   }
 
-  private hitAt(x: number, y: number, age: number, owner: number, safeAll?: boolean): typeof OOB | typeof GROUND | typeof LIQ | Tank | null {
+  private hitAt(x: number, y: number, age: number, owner: number, safeAll?: boolean, tankR2 = 144): typeof OOB | typeof GROUND | typeof LIQ | Tank | null {
     if (x < -150 || x > this.W + 150 || y > H + 50 || y < -1500) return OOB;
     for (const k of this.S.live) {
       if (safeAll ? age < 0.35 : k.id === owner && age < 0.25) continue;
       const dx = x - k.x, dy = y - (k.y - 7);
-      if (dx * dx + dy * dy < 144) return k;
+      if (dx * dx + dy * dy < tankR2) return k;
     }
     if (x >= 0 && x < this.W && y >= 0) {
       const t = y >= H ? ROCK : this.G.g[((y / CELL) | 0) * this.G.cols + ((x / CELL) | 0)];
@@ -580,9 +584,12 @@ export class Engine {
       for (let i = -4; i <= 4; i++) this.spawn({ x: p.x, y: p.y, vx: p.vx * 0.35 + i * 38, vy: Math.max(130, p.vy * 0.5), owner: p.owner, age: 1, r: p.r, dmg: p.dmg });
       this.audio.pop(); return;
     }
-    let hit = this.hitAt(p.x, p.y, p.age, p.owner, p.safeAll);
+    // Phantom (ghost) gets a bigger, taller tank hitbox (20px vs 12px) so it connects more readily.
+    let hit = this.hitAt(p.x, p.y, p.age, p.owner, p.safeAll, p.ghost ? 400 : 144);
     if (hit === OOB) { p.dead = true; return; }
     if (p.ghost && (hit === GROUND || hit === LIQ)) hit = null;
+    // Phantom: a tank it has already pierced on this flight is passed through, not re-hit.
+    if (p.ghost && hit && hit !== GROUND && hit !== LIQ && p.hitIds?.includes((hit as Tank).id)) hit = null;
     if (hit === GROUND && (p.bore || 0) > 0) { this.carve(p.x, p.y, p.boreR || 5, 0.2); p.bore = (p.bore || 0) - Math.hypot(p.vx, p.vy) * DT; return; }
     if ((p.pierceT || 0) > 0) {
       p.pierceT = (p.pierceT || 0) - DT; this.carve(p.x, p.y, 7, 0.15);
@@ -678,6 +685,13 @@ export class Engine {
         if (p.pierce && !p.pierced) { p.pierced = true; p.pierceT = 0.2; p.vx *= 0.6; p.vy *= 0.6; return; }
         if (p.kind === 'mole' || p.kind === 'saw') { p.moling = true; p.moleT = 0; p.dir = Math.sign(p.vx) || 1; p.deep = p.y + 26; if (p.kind === 'saw') p.y -= 4; return; }
       }
+    }
+    if (p.ghost && tank) {
+      // Phantom: wound this tank, then keep flying straight through to the next rival on the line.
+      (p.hitIds || (p.hitIds = [])).push(tank.id);
+      this.explode(x, y, p.r, p.dmg, o, true);
+      this.audio.boom(55);
+      return;
     }
     p.dead = true;
     const boom = () => this.explode(x, y, p.r, p.dmg, o, p.ghost);
@@ -1024,7 +1038,8 @@ export class Engine {
     const think = () => {
       const S = this.S, foes = S.live.filter((k) => !this.sameTeam(k.id, me.id)), shell = WEAPONS.shell.spec, tracer = S.tracerRound;
       const near = this.nearestRival(me.id, me.x) || foes[0] || me;
-      if (!tracer && !me.shaped) {
+      if (!tracer) {
+        // doShape self-gates per tool, so these only fire while the tool is still unspent this match.
         if (this.isBuried(me)) { aimAtFoe(near, 62); this.doShape(me, 'dig'); }
         else if (L.smart > 0 && me.hitLast >= 20 && this.rnd() < L.dodge * 0.7) { aimAtFoe(near, 60); this.doShape(me, 'wall'); }
       }
@@ -1036,7 +1051,7 @@ export class Engine {
       };
       let [foe, sol] = solveAll();
       const boxed = this.solidTop(me.x) < me.y - 24 || (this.solidAt(me.x - 26, me.y - 22) && this.solidAt(me.x + 26, me.y - 22));
-      if (!tracer && !me.shaped && L.smart > 0 && sol.miss > 80 && boxed && !this.isBuried(me)) {
+      if (!tracer && L.smart > 0 && sol.miss > 80 && boxed && !this.isBuried(me)) {
         aimAtFoe(foe, clamp(sol.a <= 90 ? sol.a : 180 - sol.a, 25, 75)); this.doShape(me, 'dig'); [foe, sol] = solveAll();
       }
       let a = me.angle, p = me.power;
