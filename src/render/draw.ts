@@ -249,7 +249,7 @@ export class Renderer {
     }
 
     const preview = eng.preview;
-    if (preview && S.phase === 'aim' && !S.demo && !eng.cur().shaped && !S.tracerRound) {
+    if (preview && S.phase === 'aim' && !S.demo && (S.sandbox || !eng.cur().usedShapes.includes(preview)) && !S.tracerRound) {
       const t = eng.cur(); ctx.globalAlpha = reduced ? 0.5 : 0.36 + 0.14 * Math.sin(T * 6);
       if (preview === 'dig') {
         const a = (t.angle * Math.PI) / 180;

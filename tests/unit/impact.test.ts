@@ -3,7 +3,7 @@ import { Engine } from '../../src/engine/engine.ts';
 import { silentUI, silentAudio } from '../../src/engine/bridge.ts';
 import { FakeClock } from '../helpers/harness.ts';
 import { WEAPON_IDS, WEAPONS } from '../../src/data/weapons.ts';
-import { BUILT, LAVA, STONE, AIR } from '../../src/engine/constants.ts';
+import { BUILT, LAVA, STONE, AIR, CELL } from '../../src/engine/constants.ts';
 import type { MatchConfig, Tank } from '../../src/engine/types.ts';
 
 function arena(seed = 999): { eng: Engine; me: Tank; foe: Tank } {
@@ -196,5 +196,73 @@ describe('damage model', () => {
     expect(foe.shield).toBe(0); // the hit popped it
     expect(eng.S.taken[foe.id] || 0).toBe(0); // and the foe took no damage from the blocked hit
     void me;
+  });
+});
+
+describe('reworked weapons & terraform', () => {
+  // Park a tank at (x,y) on a solid pedestal so it doesn't fall off the firing line during the sim.
+  function pin(eng: Engine, k: Tank, x: number, y: number): void {
+    k.x = x; k.y = y; k.falling = false; k.vy = 0; k.afloat = false;
+    const g = eng.G.g, cols = eng.G.cols;
+    for (let X = x - 16; X <= x + 16; X += 2)
+      for (let Y = y + 2; Y <= y + 40; Y += 2) {
+        const idx = ((Y / CELL) | 0) * cols + ((X / CELL) | 0);
+        if (idx >= 0 && idx < g.length) g[idx] = STONE;
+      }
+  }
+
+  it('Rail Slug bores through a thick wall to hit a tank on the far side', () => {
+    const { eng } = arena(111);
+    const me = eng.cur();
+    const foe = eng.S.tanks.find((t) => t.id !== me.id)!;
+    const W = eng.G.cols * CELL;
+    const dir = me.x < W / 2 ? 1 : -1;
+    pin(eng, foe, me.x + dir * 400, me.y); // line the foe up dead level, far across
+    // Build a ~200px-thick solid wall between them — far wider than the old 90px bore cap would clear.
+    const g = eng.G.g, cols = eng.G.cols;
+    for (let X = me.x + dir * 120; dir > 0 ? X <= me.x + dir * 320 : X >= me.x + dir * 320; X += dir * 2)
+      for (let Y = me.y - 40; Y <= me.y + 10; Y += 2) {
+        const idx = ((Y / CELL) | 0) * cols + ((X / CELL) | 0);
+        if (idx >= 0 && idx < g.length) g[idx] = STONE;
+      }
+    me.weapons = ['rail']; me.sel = 0; me.pending = null;
+    me.angle = dir > 0 ? 0 : 180; me.power = 80; // dead horizontal, toward the foe
+    eng.S.phase = 'aim';
+    eng.fire();
+    resolve(eng);
+    expect(eng.S.taken[foe.id] || 0).toBeGreaterThan(0); // it punched clean through the wall
+  });
+
+  it('Phantom flies straight and pierces every rival on its line', () => {
+    const cfg: MatchConfig = {
+      players: [{ type: 'regular' }, { type: 'regular' }, { type: 'regular' }],
+      mode: 'volleys', volleys: 30, health: 150, teams: 'ffa', deal: 'random',
+      wind: 'calm', size: 'medium', biome: 'hills', time: 'noon', weather: 'clear', seed: 111,
+    };
+    const eng = new Engine(silentUI, silentAudio, new FakeClock());
+    eng.newGame(cfg);
+    eng.S.tracerRound = false; eng.S.phase = 'aim';
+    const me = eng.cur();
+    const foes = eng.S.tanks.filter((t) => t.id !== me.id);
+    const W = eng.G.cols * CELL;
+    const dir = me.x < W / 2 ? 1 : -1;
+    pin(eng, foes[0], me.x + dir * 200, me.y); // two rivals lined up at muzzle height
+    pin(eng, foes[1], me.x + dir * 360, me.y);
+    me.weapons = ['phantom']; me.sel = 0; me.pending = null;
+    me.angle = dir > 0 ? 0 : 180; me.power = 80;
+    eng.fire();
+    resolve(eng);
+    expect(eng.S.taken[foes[0].id] || 0).toBeGreaterThan(0); // first in line hit
+    expect(eng.S.taken[foes[1].id] || 0).toBeGreaterThan(0); // and it carried on through to the second
+  });
+
+  it('a ground-shaping tool is usable only once per match', () => {
+    const { eng, me } = arena();
+    expect(eng.doShape(me, 'wall')).toBe(true); // first use works
+    expect(me.usedShapes).toContain('wall');
+    expect(eng.doShape(me, 'wall')).toBe(false); // the same tool is spent for the match
+    expect(eng.doShape(me, 'dig')).toBe(true); // a different tool still works
+    expect(eng.doShape(me, 'dig')).toBe(false); // ...also once only
+    expect(me.usedShapes.sort()).toEqual(['dig', 'wall']);
   });
 });

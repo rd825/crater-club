@@ -37,7 +37,7 @@ export function Hud(): React.JSX.Element | null {
       : `Volley ${shotNo} of ${n}`;
   const windLabel = w === 0 ? 'No wind' : `Wind ${w < 0 ? '← ' : ''}${Math.abs(w)}${w > 0 ? ' →' : ''}`;
   const envLabel = [S.pal.label, S.sky.label, S.env.weather === 'clear' ? '' : WEATHER[S.env.weather].label].filter(Boolean).join(' · ');
-  const canShape = mine && (!t.shaped || S.sandbox) && !tracer;
+  const canShape = mine && !tracer;
   const bur = g.engine.isBuried(t);
   const selId = t.weapons[t.sel];
 
@@ -84,7 +84,7 @@ export function Hud(): React.JSX.Element | null {
           </div>
           <div className="toolrow">
             {Object.keys(SHAPES).map((k) => (
-              <button key={k} type="button" disabled={!canShape}
+              <button key={k} type="button" disabled={!canShape || (!S.sandbox && t.usedShapes.includes(k))}
                 className={g.selTool === k ? 'sel' : ''} aria-pressed={g.selTool === k}
                 onClick={() => g.shapeNow(k)}
                 onPointerEnter={() => g.hoverTool(k)} onPointerLeave={() => g.hoverTool(null)}
@@ -170,6 +170,6 @@ function teamTotal(g: ReturnType<typeof useGame>, k: number): number {
   const S = g.engine.S;
   return S.tanks.reduce((n, t) => n + (S.teamOf[t.id] === k ? S.scores[t.id] : 0), 0);
 }
-function shapeNote(S: ReturnType<typeof useGame>['engine']['S'], t: { shaped: boolean }, _canShape: boolean, tracer: boolean, bur: boolean): string {
-  return S.sandbox ? 'As often as you like here' : tracer ? 'Opens after the tracer round' : t.shaped ? 'Done for this turn' : bur ? 'Buried: Dig gets you out' : 'One per turn, before you fire';
+function shapeNote(S: ReturnType<typeof useGame>['engine']['S'], t: { usedShapes: string[] }, _canShape: boolean, tracer: boolean, bur: boolean): string {
+  return S.sandbox ? 'As often as you like here' : tracer ? 'Opens after the tracer round' : bur ? 'Buried: Dig gets you out' : t.usedShapes.length >= 4 ? 'All terraforms spent for this match' : 'Each tool: once per match';
 }
