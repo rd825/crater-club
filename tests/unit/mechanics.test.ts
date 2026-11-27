@@ -100,9 +100,9 @@ describe('Lava burn at the end of a tank\'s own turn', () => {
     }
     expect(eng.isBuried(me)).toBe(false);
     const hp0 = me.hp;
-    // End the turn with Bunker: synchronous, builds walls 34px away (clear of the puddle), and —
-    // unlike Soap Bubble — gives the firer no shield that would absorb the burn.
-    me.weapons = ['bags']; me.sel = 0;
+    // End the turn by firing a Rail Slug up and away: it leaves the screen without disturbing the
+    // firer's puddle and grants no shield, so the end-of-turn lava burn still applies.
+    me.weapons = ['rail']; me.sel = 0;
     eng.fire();
     resolve(eng);
     expect(eng.inLava(me)).toBe(true); // still standing in the lava when the turn settled

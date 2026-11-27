@@ -255,9 +255,12 @@ export class Renderer {
         const a = (t.angle * Math.PI) / 180;
         ctx.strokeStyle = t.color; ctx.lineWidth = 22; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(t.x, t.y - 9); ctx.lineTo(t.x + Math.cos(a) * 104, t.y - 9 - Math.sin(a) * 104); ctx.stroke(); ctx.lineCap = 'butt';
       } else {
-        const b = eng.shapeBox(t, preview);
-        ctx.fillStyle = t.color; ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
-        ctx.globalAlpha = 0.9; ctx.strokeStyle = t.color; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.setLineDash([]);
+        const boxes = preview === 'wall' ? eng.wallBoxes(t) : [eng.shapeBox(t, preview)];
+        const fillA = reduced ? 0.5 : 0.36 + 0.14 * Math.sin(T * 6);
+        for (const b of boxes) {
+          ctx.globalAlpha = fillA; ctx.fillStyle = t.color; ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
+          ctx.globalAlpha = 0.9; ctx.strokeStyle = t.color; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.setLineDash([]);
+        }
       }
       ctx.globalAlpha = 1;
     }

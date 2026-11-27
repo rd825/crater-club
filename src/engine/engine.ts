@@ -27,7 +27,7 @@ import type {
   Game, Grid, Tank, Projectile, MatchConfig, Env, DraftView, GameOverResult, Preview, Part,
 } from './types.ts';
 
-/** A no-damage "support" weapon (smoke, bubble, bunker, hop, dirt): useful, but it can't finish a
+/** A no-damage "support" weapon (bubble, hop, dirt): useful, but it can't finish a
  *  kill. The deal and the resupply cap how many of these one tank can be handed. */
 const isSupportWeapon = (id: string): boolean => WEAPONS[id].spec.dmg === 0;
 
@@ -194,8 +194,8 @@ export class Engine {
       S.phase = 'draft'; this.renderDraft(); this.ui.onSync(); this.maybeAIPick();
     } else {
       const give = (c: { id: string; by: number }, t: Tank) => { c.by = t.id; t.weapons.push(c.id); };
-      // Keep every hand playable: cap the no-damage "support" weapons (smoke, bubble, bunker,
-      // hop, dirt) per tank so a random deal can't saddle one player with a pile of them and too
+      // Keep every hand playable: cap the no-damage "support" weapons (bubble, hop, dirt)
+      // per tank so a random deal can't saddle one player with a pile of them and too
       // few ways to actually deal damage. Deal damage weapons first, support last, so the cap
       // only ever trims the unlucky extras.
       const supCap = Math.max(1, Math.floor(S.per / 4));
@@ -413,6 +413,15 @@ export class Engine {
     if (tool === 'burrow') return [t.x - 26, t.y - 64, t.x + 26, t.y + 2];
     return [t.x - 17, t.y, t.x + 17, t.y + 46];
   }
+  /** The two brick walls the Wall tool raises, one to each side of the tank (the old Bunker shape). */
+  wallBoxes(t: Tank): [number, number, number, number][] {
+    const out: [number, number, number, number][] = [];
+    for (const d of [-1, 1]) {
+      const x0 = t.x + d * 34, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 6, t.y - 30));
+      out.push([Math.min(x0, x0 + d * 12), f - 52, Math.max(x0, x0 + d * 12), f + 1]);
+    }
+    return out;
+  }
   doShape(t: Tank, tool: string): boolean {
     const S = this.S;
     // Each shaping tool is usable once per match (unlimited in the playground).
@@ -428,6 +437,9 @@ export class Engine {
         for (let r = r0; r < rows - 5 && !SOLID[g[r * cols + c]]; r++) g[r * cols + c] = r < r0 + 3 ? TURF : DIRT;
       grid.touch(this.G, ((t.x - 28) / CELL) | 0, r0 - 1, ((t.x + 28) / CELL) | 0, rows - 1);
       t.y = r0 * CELL; this.debris(t.x, t.y + 28, 40, S.pal.dust);
+    } else if (tool === 'wall') {
+      // The Wall tool now raises Bunker-style brick walls on BOTH sides of the tank.
+      for (const b of this.wallBoxes(t)) this.fillCells(b[0], b[1], b[2], b[3], BUILT, grid.notSolid);
     } else {
       const b = this.shapeBox(t, tool);
       this.fillCells(b[0], b[1], b[2], b[3], BUILT, grid.notSolid);
@@ -507,10 +519,7 @@ export class Engine {
     // Hiccup Gas: the next shot comes out inverted — angle mirrored across vertical (180 - angle),
     // power flipped within its range (105 - power). A nasty surprise the shooter can't see coming.
     if (t.hiccup) { t.hiccup = false; t.angle = clamp(180 - t.angle, AMIN, AMAX); t.power = clamp(105 - t.power, 5, 100); this.floatText(t, 'hic!', '#a6e86a'); }
-    if (sp.self === 'bags') {
-      for (const d of [-1, 1]) { const x0 = t.x + d * 34, f = Math.min(t.y + 60, this.solidBelow(x0 + d * 6, t.y - 30)); this.fillCells(Math.min(x0, x0 + d * 12), f - 52, Math.max(x0, x0 + d * 12), f + 1, BUILT, grid.notSolid); this.smokePuff(x0, f - 20, 14, false); }
-      this.audio.thud();
-    } else if (sp.self === 'bubble') {
+    if (sp.self === 'bubble') {
       t.shield = 1; S.booms.push({ x: t.x, y: t.y - 8, r: 26, t: 0, c: '#bfe8ff', soft: true }); this.audio.pop();
     } else {
       const shoot = (first: boolean) => {
@@ -694,6 +703,8 @@ export class Engine {
       return;
     }
     p.dead = true;
+    // Coin Toss: it flips on impact — landing golden triples the hit, otherwise an honest shot.
+    if (p.coin && this.rnd() < 0.5) { p.dmg *= 3; S.floats.push({ x, y: y - 24, t: 0, text: 'Jackpot!', c: '#ffc56b' }); }
     const boom = () => this.explode(x, y, p.r, p.dmg, o, p.ghost);
     const lightning = (bx: number, r: number, d: number) => { const by = this.surfaceY(bx); this.bolt(bx + this.rand(-60, 60), -10, bx, by, '#ffffff'); S.flash = Math.max(S.flash, 0.6); this.explode(bx, by, r, d, o); this.audio.thunder(); };
     switch (p.kind) {
